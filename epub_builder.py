@@ -518,7 +518,29 @@ blockquote p {
   font-weight: 500;
 }
 
-/* Table of Contents Page */
+/* TakoYune Watermark */
+.info-watermark {
+  margin-top: 3em;
+  text-align: center;
+  opacity: 0.18;
+}
+
+.watermark-link {
+  font-size: 0.65em;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+
+.watermark-link:hover {
+  opacity: 0.5;
+}
+
+
 .toc-page {
   padding: 1em 5%;
   font-family: "Inter", "Roboto", "Segoe UI", sans-serif;

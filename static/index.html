@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NarrativeOS — EPUB Toolkit</title>
+  <meta name="description" content="Local EPUB authoring toolkit: scrape web chapters, edit Markdown, manage images, and compile EPUB novels.">
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Marked.js for Markdown preview -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── TOP BAR ─────────────────────────────── -->
+  <header id="topbar">
+    <div class="logo">
+      <span class="dot"></span>
+      NarrativeOS
+    </div>
+    <div class="breadcrumb" id="breadcrumb">
+      <span>Ready</span> — Select a novel to get started
+    </div>
+    <div class="top-actions">
+      <button class="btn btn-ghost btn-sm" id="btn-refresh-lib" title="Refresh library">⟳ Refresh</button>
+      <button class="btn btn-primary btn-sm" id="btn-quick-build" title="Build selected volume">⚡ Build EPUB</button>
+    </div>
+  </header>
+
+  <!-- ── SIDEBAR ───────────────────────────────── -->
+  <aside id="sidebar">
+    <!-- Nav -->
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-panel="overview" id="nav-overview">
+        <span class="icon">🏠</span> Overview
+      </div>
+      <div class="nav-item" data-panel="scraper" id="nav-scraper">
+        <span class="icon">🌐</span> Web → MD
+      </div>
+      <div class="nav-item" data-panel="editor" id="nav-editor">
+        <span class="icon">✏️</span> MD Editor
+      </div>
+      <div class="nav-item" data-panel="images" id="nav-images">
+        <span class="icon">🖼️</span> Images
+      </div>
+      <div class="nav-item" data-panel="metadata" id="nav-metadata">
+        <span class="icon">📋</span> Metadata
+      </div>
+      <div class="nav-item" data-panel="builder" id="nav-builder">
+        <span class="icon">📦</span> EPUB Builder
+      </div>
+      <div class="nav-item" data-panel="settings" id="nav-settings">
+        <span class="icon">⚙️</span> Settings
+      </div>
+    </nav>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- Library tree -->
+    <div class="library-panel">
+      <h4>Library</h4>
+      <div id="library-tree">
+        <div class="text-muted text-sm" style="padding:8px">Loading…</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN AREA ──────────────────────────────── -->
+  <main id="main">
+
+    <!-- ══ OVERVIEW PANEL ════════════════════ -->
+    <div class="panel active" id="panel-overview">
+      <div class="panel-header">
+        <span class="panel-title">🏠 Overview</span>
+        <div class="panel-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-new-novel">+ Novel</button>
+          <button class="btn btn-ghost btn-sm" id="btn-new-volume">+ Volume</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <!-- Stats -->
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">📚</div>
+            <div class="stat-value" id="stat-novels">—</div>
+            <div class="stat-label">Novels</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📖</div>
+            <div class="stat-value" id="stat-volumes">—</div>
+            <div class="stat-label">Volumes</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📝</div>
+            <div class="stat-value" id="stat-files">—</div>
+            <div class="stat-label">MD Files</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🖼️</div>
+            <div class="stat-value" id="stat-images">—</div>
+            <div class="stat-label">Images</div>
+          </div>
+        </div>
+
+        <!-- Selected volume info -->
+        <div id="volume-info" class="hidden">
+          <div class="flex items-center gap-8 mb-12">
+            <h3 id="vi-title" style="font-size:16px;font-weight:700;"></h3>
+            <span class="badge badge-amber" id="vi-badge">Volume</span>
+          </div>
+
+          <div class="flex gap-8 mb-16">
+            <button class="btn btn-primary btn-sm" onclick="showPanel('builder')">📦 Build EPUB</button>
+            <button class="btn btn-ghost btn-sm" onclick="showPanel('editor')">✏️ Open Editor</button>
+            <button class="btn btn-ghost btn-sm" onclick="showPanel('scraper')">🌐 Scrape Chapters</button>
+            <button class="btn btn-ghost btn-sm" onclick="showPanel('metadata')">📋 Edit Metadata</button>
+          </div>
+
+          <div class="card">
+            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">MD Files</div>
+            <div id="vi-files" class="file-list"></div>
+          </div>
+        </div>
+
+        <div id="no-selection" class="flex-col items-center" style="margin-top:60px;gap:10px;">
+          <div style="font-size:48px;opacity:0.3;">📚</div>
+          <div style="color:var(--text-muted);font-size:14px;">Select a novel volume from the sidebar to get started.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SCRAPER PANEL ════════════════════════ -->
+    <div class="panel" id="panel-scraper">
+      <div class="panel-header">
+        <span class="panel-title">🌐 Web → Markdown Scraper</span>
+      </div>
+      <div class="panel-body">
+        <div class="scraper-layout">
+          <!-- Left: input -->
+          <div class="flex-col gap-12">
+            <div class="card">
+              <div class="settings-section-title">Target</div>
+              <div class="field">
+                <label class="label">Novel</label>
+                <select class="input" id="scraper-novel" onchange="scraperNovelChange()"></select>
+              </div>
+              <div class="field">
+                <label class="label">Volume Folder</label>
+                <select class="input" id="scraper-volume"></select>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="settings-section-title">Single Chapter</div>
+              <div class="field">
+                <label class="label">URL</label>
+                <input class="input" id="scraper-url" type="url" placeholder="https://remusworld.wordpress.com/...">
+              </div>
+              <div class="field">
+                <label class="label">Output Filename</label>
+                <input class="input" id="scraper-filename" placeholder="Chapter 1.md">
+              </div>
+              <div class="flex gap-8" style="margin-top:8px;">
+                <button class="btn btn-primary flex-1" id="btn-scrape-single">🌐 Scrape URL</button>
+                <button class="btn btn-ghost" onclick="openModal('modal-scrape-html')">📋 Paste HTML</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="flex items-center gap-8 mb-12">
+                <div class="settings-section-title" style="margin-bottom:0;flex:1">Batch Scrape</div>
+                <button class="btn btn-ghost btn-sm" id="btn-add-url">+ Add URL</button>
+              </div>
+              <div id="batch-url-list" class="batch-url-list mb-12"></div>
+              <div class="flex gap-8">
+                <button class="btn btn-ghost btn-sm" id="btn-parse-html">Paste HTML List</button>
+                <button class="btn btn-primary flex-1" id="btn-scrape-batch">⚡ Scrape All</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: log -->
+          <div class="flex-col gap-12">
+            <div class="card flex-col" style="flex:1">
+              <div class="flex items-center gap-8 mb-12">
+                <div class="settings-section-title" style="margin-bottom:0;flex:1">Scrape Log</div>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('scrape-log').textContent=''">Clear</button>
+              </div>
+              <pre class="scrape-log" id="scrape-log">Scrape results will appear here…</pre>
+            </div>
+
+            <!-- HTML paste modal trigger card -->
+            <div class="card-sm">
+              <div style="font-size:12px;color:var(--text-muted);">💡 Tip: paste WordPress chapter list HTML to auto-extract all URLs and filenames at once.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ EDITOR PANEL ════════════════════════ -->
+    <div class="panel" id="panel-editor">
+      <div class="panel-header">
+        <span class="panel-title">✏️ Markdown Editor</span>
+        <div class="panel-actions">
+          <!-- File selector -->
+          <select class="input" style="width:220px" id="editor-novel-select" onchange="editorNovelChange()"></select>
+          <select class="input" style="width:200px" id="editor-volume-select" onchange="editorVolumeChange()"></select>
+          <select class="input" style="width:160px" id="editor-file-select" onchange="editorFileChange()"></select>
+
+          <!-- View toggle -->
+          <button class="btn btn-ghost btn-sm" id="btn-view-split"  title="Split view">⬛⬛</button>
+          <button class="btn btn-ghost btn-sm" id="btn-view-editor" title="Editor only">✏️</button>
+          <button class="btn btn-ghost btn-sm" id="btn-view-preview" title="Preview only">👁️</button>
+
+          <button class="btn btn-primary btn-sm" id="btn-save-md">💾 Save</button>
+          <button class="btn btn-ghost btn-sm" id="btn-rename-file" title="Rename File">✏️ Rename</button>
+          <button class="btn btn-danger btn-sm" id="btn-delete-file" title="Delete File">🗑️ Delete</button>
+          <button class="btn btn-ghost btn-sm" id="btn-new-file">+ New File</button>
+        </div>
+      </div>
+
+      <div class="editor-layout" id="editor-layout">
+        <!-- Editor pane -->
+        <div class="editor-pane">
+          <div class="editor-pane-header">
+            <span>📝 Source</span>
+            <button class="btn btn-ghost btn-sm btn-icon ml-auto" id="btn-toggle-wrap" title="Toggle Word Wrap" style="margin-right:8px;font-size:14px;padding:2px 6px;">↵</button>
+            <span class="font-mono text-sm" id="editor-char-count">0 chars</span>
+          </div>
+          <div class="editor-highlight-wrap" id="editor-highlight-wrap">
+            
+            <!-- Find & Replace Widget -->
+            <div id="find-replace-widget" class="hidden">
+              <div class="fr-row">
+                <input type="text" id="fr-find-input" class="input fr-input" placeholder="Find">
+                <span id="fr-count" class="text-muted text-sm" style="margin: 0 8px; font-family:var(--font-mono)">0/0</span>
+                <button class="btn btn-ghost btn-sm btn-icon" id="btn-fr-prev" title="Previous (Shift+Enter)">↑</button>
+                <button class="btn btn-ghost btn-sm btn-icon" id="btn-fr-next" title="Next (Enter)">↓</button>
+                <button class="btn btn-ghost btn-sm btn-icon" id="btn-fr-close" title="Close (Esc)" style="margin-left:auto">✕</button>
+              </div>
+              <div class="fr-row" style="margin-top:6px;">
+                <input type="text" id="fr-replace-input" class="input fr-input" placeholder="Replace">
+                <button class="btn btn-ghost btn-sm" id="btn-fr-replace" style="margin-left:8px;">Replace</button>
+                <button class="btn btn-ghost btn-sm" id="btn-fr-replace-all" style="margin-left:4px;">All</button>
+              </div>
+            </div>
+
+            <div class="editor-line-numbers" id="editor-line-numbers" aria-hidden="true"></div>
+            <pre class="editor-highlight-layer" id="editor-highlight-layer" aria-hidden="true"></pre>
+            <textarea id="md-textarea" spellcheck="false" placeholder="Select a file or create a new one to start editing…"></textarea>
+          </div>
+        </div>
+
+        <!-- Preview pane -->
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <span>👁️ Preview</span>
+            <span class="ml-auto text-sm text-muted" id="preview-status">Live</span>
+          </div>
+          <div id="md-preview"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ IMAGES PANEL ════════════════════════ -->
+    <div class="panel" id="panel-images">
+      <div class="panel-header">
+        <span class="panel-title">🖼️ Image Manager</span>
+        <div class="panel-actions">
+          <select class="input" style="width:200px" id="img-novel-select" onchange="imgNovelChange()"></select>
+          <select class="input" style="width:180px" id="img-volume-select" onchange="imgVolumeChange()"></select>
+        </div>
+      </div>
+      <div class="panel-body">
+        <!-- Drop zone -->
+        <div class="upload-dropzone" id="upload-dropzone">
+          <div class="dz-icon">📁</div>
+          <div class="dz-text">Drag & drop images here, or click to select</div>
+          <div class="dz-hint">PNG · JPG · WEBP · GIF — will be saved to images/ folder</div>
+          <input type="file" id="img-file-input" multiple accept="image/*" style="display:none">
+        </div>
+
+        <!-- Image grid -->
+        <div id="image-grid" class="image-grid"></div>
+      </div>
+    </div>
+
+    <!-- ══ METADATA PANEL ═══════════════════════ -->
+    <div class="panel" id="panel-metadata">
+      <div class="panel-header">
+        <span class="panel-title">📋 Metadata Editor (main.md)</span>
+        <div class="panel-actions">
+          <select class="input" style="width:200px" id="meta-novel-select" onchange="metaNovelChange()"></select>
+          <select class="input" style="width:180px" id="meta-volume-select" onchange="metaVolumeChange()"></select>
+          <button class="btn btn-ghost btn-sm" id="btn-meta-raw">Raw MD</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-meta">💾 Save</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="meta-form-view">
+          <!-- Primary Title Banner -->
+          <div class="card-sm mb-12" style="border-color:var(--border-focus);background:var(--accent-glow);">
+            <div class="flex items-center gap-12">
+              <div>
+                <div class="label" style="margin-bottom:4px;">⭐ Primary Title (used as EPUB main title)</div>
+                <div style="font-size:11px;color:var(--text-muted);">Leave unused title fields empty — they will be skipped automatically.</div>
+              </div>
+              <select class="input" id="meta-primary-title" style="width:220px;flex-shrink:0;margin-left:auto;">
+                <option value="id">Indonesian (default)</option>
+                <option value="en">English</option>
+                <option value="jp">Japanese</option>
+                <option value="romaji">Romanji</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="meta-form" id="meta-form">
+            <div class="field">
+              <label class="label">Title (Japanese) <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+              <input class="input" id="meta-title-jp" placeholder="日本語タイトル — leave blank to skip">
+            </div>
+            <div class="field">
+              <label class="label">Title (Indonesian) <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+              <input class="input" id="meta-title-id" placeholder="Judul Indonesia — leave blank to skip">
+            </div>
+            <div class="field">
+              <label class="label">Title (English) <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+              <input class="input" id="meta-title-en" placeholder="English Title — leave blank to skip">
+            </div>
+            <div class="field">
+              <label class="label">Title (Romanji) <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+              <input class="input" id="meta-title-ro" placeholder="Romanji Title — leave blank to skip">
+            </div>
+            <div class="field">
+              <label class="label">Volume <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+              <input class="input" id="meta-volume-num" placeholder="e.g. 1">
+            </div>
+            <div class="field">
+              <label class="label">Author</label>
+              <input class="input" id="meta-author" placeholder="Author name">
+            </div>
+            <div class="field">
+              <label class="label">Artist / Illustrator</label>
+              <input class="input" id="meta-artist" placeholder="Artist name">
+            </div>
+            <div class="field">
+              <label class="label">Translator</label>
+              <input class="input" id="meta-translator" placeholder="Translator name">
+            </div>
+            <div class="field">
+              <label class="label">EPUB Compiler</label>
+              <input class="input" id="meta-compiler" value="TakoYune" readonly style="opacity: 0.7; cursor: not-allowed;" title="Always TakoYune">
+            </div>
+            <div class="field">
+              <label class="label">Genres</label>
+              <input class="input" id="meta-genres" placeholder="Romance, Fantasy, ...">
+            </div>
+            <div class="field full">
+              <label class="label">Cover (URL or local path)</label>
+              <input class="input" id="meta-cover" placeholder="images/cover.webp or https://...">
+            </div>
+            <div class="field full">
+              <div class="flex items-center justify-between mb-8">
+                <label class="label" style="margin:0">Table of Contents</label>
+                <div class="flex gap-8">
+                  <button class="btn btn-ghost btn-sm" id="btn-add-toc-item" style="padding:2px 8px;font-size:10px;">+ Add Custom Item</button>
+                  <button class="btn btn-ghost btn-sm" id="btn-auto-toc" style="padding:2px 8px;font-size:10px;" title="Scan folder for all .md files and append them">⚡ Auto Scan MD</button>
+                </div>
+              </div>
+              <div class="toc-builder" id="toc-builder">
+                <!-- TOC Items injected via JS -->
+              </div>
+              <!-- Hidden fallback to store raw parsed data if needed, though JS will read directly from the builder -->
+              <textarea id="meta-toc" class="hidden"></textarea>
+            </div>
+          </div>
+
+          <!-- TakoYune credit -->
+          <div style="text-align:center;margin-top:24px;padding:12px 0;border-top:1px solid var(--border);">
+            <a href="https://github.com/takoyune" target="_blank"
+               style="font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);text-decoration:none;opacity:0.45;transition:.2s;"
+               onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">
+              TakoYune
+            </a>
+          </div>
+        </div>
+
+        <!-- Raw MD fallback -->
+        <div id="meta-raw-view" class="hidden">
+          <textarea class="input" id="meta-raw-textarea" rows="30" style="font-family:var(--font-mono);font-size:12px;height:calc(100vh - 200px)"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ EPUB BUILDER PANEL ═══════════════════ -->
+    <div class="panel" id="panel-builder">
+      <div class="panel-header">
+        <span class="panel-title">📦 EPUB Builder</span>
+        <div class="panel-actions">
+          <select class="input" style="width:200px" id="build-novel-select" onchange="buildNovelChange()"></select>
+          <select class="input" style="width:180px" id="build-volume-select"></select>
+          <button class="btn btn-primary" id="btn-build">⚡ Compile EPUB</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <!-- Build phases -->
+        <div style="margin-bottom:20px">
+          <div class="build-phase idle" id="phase-audit">
+            <span class="ph-icon">🔍</span>
+            <span>Phase 1 — Audit & Verify Files</span>
+            <span class="badge badge-muted ml-auto" id="phase-audit-badge">Idle</span>
+          </div>
+          <div class="build-phase idle" id="phase-format">
+            <span class="ph-icon">✍️</span>
+            <span>Phase 2 — Format & Style Processing</span>
+            <span class="badge badge-muted ml-auto" id="phase-format-badge">Idle</span>
+          </div>
+          <div class="build-phase idle" id="phase-images">
+            <span class="ph-icon">🖼️</span>
+            <span>Phase 3 — Image Compress & Convert</span>
+            <span class="badge badge-muted ml-auto" id="phase-images-badge">Idle</span>
+          </div>
+          <div class="build-phase idle" id="phase-compile">
+            <span class="ph-icon">⚙️</span>
+            <span>Phase 4 — Compile EPUB Package</span>
+            <span class="badge badge-muted ml-auto" id="phase-compile-badge">Idle</span>
+          </div>
+          <div class="build-phase idle" id="phase-done">
+            <span class="ph-icon">✅</span>
+            <span>Phase 5 — Done</span>
+            <span class="badge badge-muted ml-auto" id="phase-done-badge">Idle</span>
+          </div>
+        </div>
+
+        <!-- Log -->
+        <div class="flex items-center gap-8 mb-8">
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Build Log</span>
+          <button class="btn btn-ghost btn-sm ml-auto" onclick="document.getElementById('build-log').textContent=''">Clear</button>
+        </div>
+        <pre class="build-log" id="build-log">Build output will appear here…</pre>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS PANEL ══════════════════════ -->
+    <div class="panel" id="panel-settings">
+      <div class="panel-header">
+        <span class="panel-title">⚙️ Settings (settings.ini)</span>
+        <div class="panel-actions">
+          <button class="btn btn-primary btn-sm" id="btn-save-settings">💾 Save Settings</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="settings-grid">
+          <!-- Image settings -->
+          <div class="card">
+            <div class="settings-section-title">🖼️ Image</div>
+            <div class="field">
+              <label class="label">Output Format</label>
+              <select class="input" id="set-img-format">
+                <option value="webp">WebP (recommended)</option>
+                <option value="jpeg">JPEG</option>
+                <option value="png">PNG</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Quality (1–100)</label>
+              <input class="input" type="number" id="set-img-quality" min="1" max="100">
+            </div>
+            <div class="field">
+              <label class="label">Max Size (MB)</label>
+              <input class="input" type="number" id="set-img-maxsize" step="0.1" min="0.1">
+            </div>
+            <div class="field">
+              <label class="label">Max Dimension (px)</label>
+              <input class="input" type="number" id="set-img-maxdim" step="100">
+            </div>
+            <div class="field">
+              <label class="label">WebP Method (0–6)</label>
+              <input class="input" type="number" id="set-img-method" min="0" max="6">
+            </div>
+          </div>
+
+          <!-- Output settings -->
+          <div class="card">
+            <div class="settings-section-title">📤 Output</div>
+            <div class="field">
+              <label class="label">Language Code</label>
+              <input class="input" id="set-out-lang" placeholder="id">
+            </div>
+            <div class="field">
+              <label class="label">Output Location</label>
+              <select class="input" id="set-out-location">
+                <option value="parent">Parent folder</option>
+                <option value="same">Same folder</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Filename Format</label>
+              <input class="input" id="set-out-format" placeholder="{folder_name}">
+            </div>
+          </div>
+
+          <!-- Styling settings -->
+          <div class="card">
+            <div class="settings-section-title">🎨 Styling</div>
+            <div class="field">
+              <label class="label">Drop Cap</label>
+              <select class="input" id="set-sty-dropcap">
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Scene Break Symbol</label>
+              <input class="input" id="set-sty-scenebreak" placeholder="❖ ❖ ❖">
+            </div>
+            <div class="field">
+              <label class="label">Font Size (em)</label>
+              <input class="input" type="number" id="set-sty-fontsize" step="0.1">
+            </div>
+            <div class="field">
+              <label class="label">Line Height</label>
+              <input class="input" type="number" id="set-sty-lineheight" step="0.1">
+            </div>
+            <div class="field">
+              <label class="label">Text Indent (em)</label>
+              <input class="input" type="number" id="set-sty-indent" step="0.1">
+            </div>
+          </div>
+
+          <!-- Build settings -->
+          <div class="card">
+            <div class="settings-section-title">🔨 Build</div>
+            <div class="field">
+              <label class="label">Auto Convert Images</label>
+              <select class="input" id="set-bld-autoconvert">
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Auto Compress</label>
+              <select class="input" id="set-bld-autocompress">
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Download Online Images</label>
+              <select class="input" id="set-bld-download">
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Download Retries</label>
+              <input class="input" type="number" id="set-bld-retries" min="1">
+            </div>
+            <div class="field">
+              <label class="label">Download Timeout (s)</label>
+              <input class="input" type="number" id="set-bld-timeout">
+            </div>
+          </div>
+
+          <!-- System / Logging settings -->
+          <div class="card" style="grid-column: 1 / -1;">
+            <div class="settings-section-title">💻 System & Logging</div>
+            <div style="display:flex; gap:16px; align-items:flex-start;">
+              <div style="flex:1;">
+                <div class="field">
+                  <label class="label">Max Log History (lines)</label>
+                  <input class="input" type="number" id="set-sys-maxlogs" min="100" placeholder="1000">
+                  <div class="text-muted text-sm mt-2">Maximum number of recent events kept in narrative_os.log.</div>
+                </div>
+              </div>
+              <div style="flex:2;">
+                <div class="flex items-center gap-8 mb-4">
+                  <label class="label mb-0">Recent Logs</label>
+                  <button class="btn btn-ghost btn-sm ml-auto" id="btn-refresh-logs">⟳ Refresh</button>
+                </div>
+                <textarea class="input" id="system-log-viewer" readonly style="height: 150px; font-family: var(--font-mono); font-size: 11px; white-space: pre; overflow: auto;"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main><!-- #main -->
+</div><!-- #app -->
+
+<!-- ── Toast container ─────────── -->
+<div id="toast-container"></div>
+
+<!-- ── HTML Paste Modal ──────────── -->
+<div class="modal-overlay" id="modal-html-paste">
+  <div class="modal">
+    <h3>📋 Paste WordPress Chapter List HTML</h3>
+    <div class="field">
+      <label class="label">HTML Source</label>
+      <textarea class="input" id="html-paste-input" rows="10" style="font-family:var(--font-mono);font-size:11px;" placeholder='&lt;li&gt;&lt;a href="https://..."&gt;Chapter 1&lt;/a&gt;&lt;/li&gt;'></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="btn-paste-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-paste-confirm">Extract URLs</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Novel Modal ────────────── -->
+<div class="modal-overlay" id="modal-new-novel">
+  <div class="modal">
+    <h3>📚 Create New Novel</h3>
+    <div class="field">
+      <label class="label">Novel Folder Name</label>
+      <input class="input" id="new-novel-name" placeholder="My Isekai Novel">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-novel')">Cancel</button>
+      <button class="btn btn-primary" id="btn-create-novel">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Volume Modal ───────────── -->
+<div class="modal-overlay" id="modal-new-volume">
+  <div class="modal">
+    <h3>📖 Create New Volume</h3>
+    <div class="field">
+      <label class="label">Novel</label>
+      <select class="input" id="new-volume-novel"></select>
+    </div>
+    <div class="field">
+      <label class="label">Volume Folder Name</label>
+      <input class="input" id="new-volume-name" placeholder="My Novel Volume 1">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-volume')">Cancel</button>
+      <button class="btn btn-primary" id="btn-create-volume">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── New File Modal ────────────── -->
+<div class="modal-overlay" id="modal-new-file">
+  <div class="modal">
+    <h3>📝 New Markdown File</h3>
+    <div class="field">
+      <label class="label">Filename</label>
+      <input class="input" id="new-file-name" placeholder="Chapter 1.md">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-file')">Cancel</button>
+      <button class="btn btn-primary" id="btn-create-file">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Rename File Modal ────────────── -->
+<div class="modal-overlay" id="modal-rename-file">
+  <div class="modal">
+    <h3>✏️ Rename File</h3>
+    <div class="field">
+      <label class="label">New Filename</label>
+      <input class="input" id="rename-file-name" placeholder="Chapter 1.md">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-rename-file')">Cancel</button>
+      <button class="btn btn-primary" id="btn-confirm-rename">Rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scrape HTML Modal ────────────── -->
+<div class="modal-overlay" id="modal-scrape-html">
+  <div class="modal">
+    <h3>📋 Scrape from HTML</h3>
+    <p class="text-muted text-sm mb-12">Use this for premium or locked chapters. Open the chapter in your browser, press <b>Ctrl+U</b>, select all, copy, and paste here.</p>
+    <div class="field">
+      <textarea class="input" id="scrape-html-input" rows="8" placeholder="Paste HTML source code here..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-scrape-html')">Cancel</button>
+      <button class="btn btn-primary" id="btn-confirm-scrape-html">Scrape HTML</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Image Lightbox Modal ──────────── -->
+<div class="modal-overlay" id="modal-lightbox" onclick="closeModal('modal-lightbox')">
+  <div class="modal" style="background:transparent;border:none;box-shadow:none;padding:0;max-width:95vw;max-height:95vh;display:flex;flex-direction:column;align-items:center;justify-content:center;" onclick="event.stopPropagation()">
+    <img id="lightbox-img" src="" style="max-width:100%;max-height:90vh;border-radius:var(--radius);box-shadow:0 10px 50px rgba(0,0,0,0.8);object-fit:contain;">
+    <button class="btn btn-ghost" style="margin-top:16px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff;" onclick="closeModal('modal-lightbox')">Close</button>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

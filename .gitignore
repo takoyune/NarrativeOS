@@ -1,0 +1,35 @@
+# Virtual environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+narrative_os.log
+
+# Novel Data Directories (Exclude all folders that don't start with .)
+/*
+!/.gitignore
+!/README.md
+!/*.py
+!/run_web.bat
+!/settings.ini
+!/main.md
+!/*.md
+!/static/
+!/static/**
+!/.git/
+
+# Ignore test files
+test*.py
+test*.html
+
+# Ignore build artifacts
+*.epub
+scratch/

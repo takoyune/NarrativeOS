@@ -162,13 +162,16 @@ def compress_image(filepath, max_mb=None):
 def update_md_image_references(base_dir, old_name, new_name):
     """Scan all .md files in base_dir and replace old_name with new_name in image references.
     Called after a PNG→JPEG conversion to keep .md files in sync."""
+    # [Bug 4 fix] Use regex with boundaries to prevent replacing 1.jpg inside 11.jpg
+    pattern = re.compile(r'(?<![\w\-])' + re.escape(old_name) + r'(?![\w\-])', re.IGNORECASE)
+    
     for fname in os.listdir(base_dir):
         if fname.lower().endswith('.md'):
             fpath = os.path.join(base_dir, fname)
             try:
                 with open(fpath, 'r', encoding='utf-8') as f:
                     text = f.read()
-                new_text = text.replace(old_name, new_name)
+                new_text = pattern.sub(new_name, text)
                 if new_text != text:
                     with open(fpath, 'w', encoding='utf-8') as f:
                         f.write(new_text)
@@ -182,7 +185,13 @@ def download_url(url, dest_path, retries=None, timeout=None):
         retries = SETTINGS['download_retries']
     if timeout is None:
         timeout = SETTINGS['download_timeout']
+    
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    # Bypass hotlink protection for known CDNs
+    if 'cdn.asdasdhg.com' in url:
+        headers['Referer'] = 'https://kdtnovels.net/'
+        
     for attempt in range(1, retries + 1):
         try:
             req = urllib.request.Request(url, headers=headers)
@@ -202,7 +211,7 @@ def auto_compress_folder(base_dir):
     print(f"Checking and converting images to {target_fmt} automatically...")
     target_ext = {'webp': '.webp', 'jpeg': '.jpg', 'jpg': '.jpg', 'png': '.png'}.get(SETTINGS['image_format'], '.webp')
     
-    for folder_name in ["images", "Ilustrasi"]:
+    for folder_name in ["images", "Ilustrasi", "Ilustarasi"]:
         folder_path = os.path.join(base_dir, folder_name)
         if os.path.exists(folder_path):
             for file in list(os.listdir(folder_path)):  # list() avoids issues when files are renamed
@@ -248,8 +257,8 @@ def process_markdown_tricks(md_text):
     # Game UI box: [UI] ... [/UI]
     md_text = re.sub(r'\[UI\](.*?)\[/UI\]', r'\n<pre class="game-ui-box">\1</pre>\n', md_text, flags=re.DOTALL | re.IGNORECASE)
     
-    # Centered symbol: ■ or 🍖 (or similar) on its own line → centered scene marker
-    md_text = re.sub(r'^\s*([■🍖]+)\s*$', f'<div class="scene-break">\\1</div>', md_text, flags=re.MULTILINE)
+    # Centered symbol: ■, 🍖, ▼, ▲, ◆, ❖, etc. (with optional spacing) on its own line → centered scene marker
+    md_text = re.sub(r'^\s*(([■🍖▼▲◆○●❖])(\s*\2)*)\s*$', f'<div class="scene-break">\\1</div>', md_text, flags=re.MULTILINE)
     
     return md_text
 
@@ -274,8 +283,8 @@ def remove_first_p_indent(html):
     return html
 
 def download_online_images(base_dir, md_text):
-    # Match standard markdown images with HTTP/HTTPS URLs
-    pattern = re.compile(r"!\[(.*?)\]\((https?://[^\)]+)\)", re.IGNORECASE)
+    # [Bug 3 fix] Match standard markdown images with HTTP URLs, stopping at first space to avoid title attribute crashes
+    pattern = re.compile(r"!\[(.*?)\]\((https?://[^\s\)]+)[^\)]*\)", re.IGNORECASE)
     
     images_dir = os.path.join(base_dir, "images")
     os.makedirs(images_dir, exist_ok=True)
@@ -301,8 +310,9 @@ def download_online_images(base_dir, md_text):
             if not download_url(clean_url, local_path):
                 return match.group(0)  # keep original on failure
         
-        # Convert to WebP after download
-        if os.path.exists(local_path) and not local_path.lower().endswith('.webp'):
+        # Convert to target format after download
+        target_ext = {'webp': '.webp', 'jpeg': '.jpg', 'jpg': '.jpg', 'png': '.png'}.get(SETTINGS['image_format'], '.webp')
+        if os.path.exists(local_path) and not local_path.lower().endswith(target_ext):
             new_path = compress_image(local_path)
             if new_path != local_path:
                 filename = os.path.basename(new_path)
@@ -342,23 +352,50 @@ def build_novel(args=None):
     title_japan = re.search(r"Title Japan\s*:\s*\[(.*?)\]", content, flags=re.IGNORECASE)
     author_match = re.search(r"Author\s*:\s*\[(.*?)\]", content, flags=re.IGNORECASE)
     cover_match = re.search(r"Cover\s*:\s*\[(.*?)\]", content, flags=re.IGNORECASE)
+    # Primary title override: e.g. "Primary Title: [en]"
+    primary_override = re.search(r"Primary Title\s*:\s*\[(.*?)\]", content, flags=re.IGNORECASE)
+    primary_lang = primary_override.group(1).strip().lower() if primary_override else None
     
+    # Determine which title is primary based on override or fallback order
+    title_map = {
+        'id': title_indo,
+        'en': title_en,
+        'romaji': title_romaji,
+        'jp': title_japan,
+    }
+    label_map = {
+        'id': 'Title Indonesia',
+        'en': 'Title Inggris',
+        'romaji': 'Title Romanji',
+        'jp': 'Title Japan',
+    }
     primary_title_label = ""
-    if title_indo:
+    if primary_lang and primary_lang in title_map and title_map[primary_lang]:
+        title = title_map[primary_lang].group(1).strip()
+        primary_title_label = label_map[primary_lang]
+    elif title_indo and title_indo.group(1).strip():
         title = title_indo.group(1).strip()
         primary_title_label = "Title Indonesia"
-    elif title_en:
+    elif title_en and title_en.group(1).strip():
         title = title_en.group(1).strip()
         primary_title_label = "Title Inggris"
-    elif title_romaji:
+    elif title_romaji and title_romaji.group(1).strip():
         title = title_romaji.group(1).strip()
         primary_title_label = "Title Romanji"
-    elif title_japan:
+    elif title_japan and title_japan.group(1).strip():
         title = title_japan.group(1).strip()
         primary_title_label = "Title Japan"
     else:
         title = os.path.basename(base_dir)
         primary_title_label = "Title"
+
+    volume_match = re.search(r"Volume\s*:\s*\[(.*?)\]", content, flags=re.IGNORECASE)
+    if volume_match and volume_match.group(1).strip():
+        vol_str = volume_match.group(1).strip()
+        if not vol_str.lower().startswith("volume"):
+            title += f" Volume {vol_str}"
+        else:
+            title += f" {vol_str}"
 
     author = author_match.group(1).strip() if author_match else "Unknown Author"
     cover_rel_path = cover_match.group(1).strip() if cover_match else None
@@ -393,6 +430,9 @@ def build_novel(args=None):
             about_body_elements.append(f'      <span class="info-value">{val_strip}</span>')
             about_body_elements.append('    </div>')
             
+        about_body_elements.append('  </div>')
+        about_body_elements.append('  <div class="info-watermark">')
+        about_body_elements.append('    <a href="https://github.com/takoyune" class="watermark-link">TakoYune</a>')
         about_body_elements.append('  </div>')
         about_body_elements.append('</div>')
         about_body_html = "\n".join(about_body_elements)
@@ -442,7 +482,11 @@ def build_novel(args=None):
                 if not os.path.exists(dest_path):
                     shutil.copy2(src_path, dest_path)
                 
+            # [Bug 2 fix] Sanitize ID for valid XML ID
             img_id = 'cover-img' if is_cover else f"img-{filename}"
+            img_id = re.sub(r'[^a-zA-Z0-9_.-]', '_', img_id)
+            if img_id and img_id[0].isdigit():
+                img_id = "i_" + img_id
             
             if any(item['id'] == img_id for item in manifest_items):
                 return filename
@@ -517,7 +561,13 @@ def build_novel(args=None):
             print("Error: Table of Content block not found in main.md")
             return
         toc_block = toc_block_match.group(1)
-        raw_toc_items = re.findall(r"\[(.*?)\]", toc_block)
+        
+        # [Bug 1 fix] Split by line and strip brackets cleanly instead of regex findall which breaks on nested brackets
+        raw_toc_items = []
+        for line in toc_block.split('\n'):
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                raw_toc_items.append(line[1:-1])
         toc_items = [item.strip() for item in raw_toc_items if item.strip()]
 
         for item in toc_items:
