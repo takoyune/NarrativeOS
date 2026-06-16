@@ -28,6 +28,11 @@ Built originally to circumvent complex anti-scraping measures on translation sit
 - **Premium Styling Elements**: The compiler automatically supports Drop Caps, Scene Breaks (`***`), Character Thought Boxes, Game UI/Status Windows, and Full-Page Image Isolation. (See `Styling_and_Tricks_Guide.md` for the full cheatsheet!)
 - **Image Optimization**: Automatically compresses massive PNGs and JPEGs into lightweight WebP formats to keep your EPUB file size minimal without losing quality.
 
+### ✅ Tested Websites
+NarrativeOS's scraping engine and anti-obfuscation layers have been extensively tested and confirmed to work perfectly out-of-the-box with:
+- `remusworld.wordpress.com`
+- `kdtnovels.net` (including native canvas bypass for obfuscated premium images)
+
 ---
 
 ## 🚀 Getting Started
