@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+beautifulsoup4
+markdownify
+Pillow
+requests
+python-multipart
+markdown
