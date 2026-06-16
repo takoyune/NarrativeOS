@@ -31,7 +31,7 @@ Built originally to circumvent complex anti-scraping measures on translation sit
 ### ✅ Tested Websites
 NarrativeOS's scraping engine and anti-obfuscation layers have been extensively tested and confirmed to work perfectly out-of-the-box with:
 - `remusworld.wordpress.com`
-- `kdtnovels.net` (including native canvas bypass for obfuscated premium images)
+- `kdtnovels.net`
 
 ---
 
