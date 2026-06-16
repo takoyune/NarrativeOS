@@ -45,7 +45,7 @@ Clone the repository and install the required dependencies:
 ```bash
 git clone https://github.com/takoyune/NarrativeOS.git
 cd NarrativeOS
-pip install fastapi uvicorn beautifulsoup4 markdownify pillow
+pip install -r requirements.txt
 ```
 
 ### 2. Running the Server
