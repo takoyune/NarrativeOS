@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
 :root {
   --bg-base:       #0c0c0f;
   --bg-surface:    #111116;
@@ -26,7 +26,7 @@
   --radius:        8px;
   --radius-lg:     12px;
   --radius-xl:     16px;
-  --font-sans:     'DM Sans', system-ui, sans-serif;
+  --font-sans:     'Inter', system-ui, sans-serif;
   --font-mono:     'DM Mono', 'Fira Code', monospace;
   --transition:    0.18s ease;
   --shadow:        0 4px 24px rgba(0,0,0,0.6);
@@ -88,6 +88,25 @@
   --text-secondary:#d6d3d1;
   --text-muted:    #a8a29e;
   --text-accent:   #4ade80;
+}
+[data-theme="light-clean"] {
+  --bg-base:       #f9f9f9;
+  --bg-surface:    #ffffff;
+  --bg-panel:      #f0f0f0;
+  --bg-card:       #ffffff;
+  --bg-hover:      #e5e5e5;
+  --bg-active:     #d4d4d4;
+  --border:        #e0e0e0;
+  --border-focus:  #3b82f6aa;
+  --border-strong: #c0c0c0;
+  --accent:        #3b82f6;
+  --accent-dim:    #2563eb;
+  --accent-glow:   #3b82f622;
+  --accent-muted:  #3b82f666;
+  --text-primary:  #1f2937;
+  --text-secondary:#4b5563;
+  --text-muted:    #6b7280;
+  --text-accent:   #3b82f6;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
@@ -255,7 +274,7 @@ a:hover { text-decoration: underline; }
   transition: width 0.45s var(--spring), min-width 0.45s var(--spring); position: relative;
   border-right: 1px solid var(--border);
 }
-.detail-panel.collapsed { width: var(--panel-w-collapsed); min-width: var(--panel-w-collapsed); }
+.detail-panel.collapsed { width: 0; min-width: 0; border-right: none; }
 .detail-panel .panel-header { padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; min-height: 32px; overflow: hidden; }
 .panel-title { font-size: 15px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; white-space: nowrap; transition: opacity 0.25s var(--spring); }
@@ -266,6 +285,7 @@ a:hover { text-decoration: underline; }
 }
 .collapse-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .collapse-btn svg { width: 15px; height: 15px; stroke-width: 1.8; }
+#topbar .collapse-btn svg { width: 20px; height: 20px; stroke-width: 2; }
 .detail-panel.collapsed .collapse-btn { transform: rotate(180deg); margin: 0 auto; }
 .search-wrap { position: relative; overflow: hidden; transition: opacity 0.3s var(--spring), height 0.3s var(--spring), margin 0.3s var(--spring); height: 36px; }
 .detail-panel.collapsed .search-wrap { opacity: 0; height: 0; pointer-events: none; }
@@ -297,7 +317,7 @@ a:hover { text-decoration: underline; }
 .submenu { overflow: hidden; max-height: 0; transition: max-height 0.38s var(--spring), opacity 0.28s var(--spring); opacity: 0; margin-left: 12px; border-left: 1px solid var(--sub-border); margin-top: 2px; margin-bottom: 2px; }
 .menu-item.open .submenu { max-height: 400px; opacity: 1; }
 .detail-panel.collapsed .submenu { display: none; }
-.sub-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0 10px 0 14px; height: 32px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; font-family: inherit; text-align: left; border-radius: 6px; transition: background 0.12s, color 0.12s; white-space: nowrap; }
+.sub-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0 10px 0 14px; height: 32px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; font-family: inherit; text-align: left; border-radius: 6px; transition: background 0.12s, color 0.12s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sub-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sub-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; transition: background 0.12s; }
 .sub-btn:hover .sub-dot { background: var(--text-secondary); }

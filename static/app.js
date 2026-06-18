@@ -11,7 +11,7 @@ const state = {
   epubPreviewMode: false,
 };
 async function api(method, url, body) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: { 'X-API-Key': window.API_KEY || '' } };
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
@@ -30,7 +30,7 @@ async function sendLog(level, message) {
   try {
     await fetch('/api/logs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': window.API_KEY || '' },
       body: JSON.stringify({ level, message })
     });
   } catch(e) {}
@@ -156,7 +156,7 @@ function renderLibraryTree() {
     const novelEl = document.createElement('div');
     novelEl.className = 'menu-item';
     novelEl.innerHTML = `
-      <button class="menu-btn">
+      <button class="menu-btn" title="${novel}">
         <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         <span class="menu-label">${novel}</span>
         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -187,6 +187,7 @@ async function loadVolumesInTree(novel, container) {
       el.className = 'sub-btn';
       el.dataset.novel = novel;
       el.dataset.volume = vol;
+      el.title = vol;
       el.innerHTML = `<span class="sub-dot"></span>${vol}`;
       el.addEventListener('click', () => {
         document.querySelectorAll('.sub-btn.active').forEach(b => b.classList.remove('active'));
@@ -471,7 +472,7 @@ function logScrape(msg, cls = '') {
   const log = document.getElementById('scrape-log');
   const line = document.createElement('span');
   if (cls) line.className = `log-${cls}`;
-  line.textContent = msg + '\n';
+  line.innerHTML = msg + '\n';
   log.appendChild(line);
   log.scrollTop = log.scrollHeight;
 }
@@ -538,18 +539,41 @@ document.getElementById('btn-scrape-batch').addEventListener('click', async () =
   btn.innerHTML = '<span class="spinner"></span> Scraping…';
   logScrape(`\n→ Batch scrape: ${valid.length} URLs`, 'info');
   try {
-    const res = await POST('/api/scrape/batch', { urls: valid, novel, volume });
-    (res.results || []).forEach(r => {
-      if (r.ok) logScrape(`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>${r.filename} (${r.chars} chars)`, 'ok');
-      else       logScrape(`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>${r.filename}: ${r.error}`, 'err');
+    const response = await fetch('/api/scrape/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': window.API_KEY || '' },
+      body: JSON.stringify({ urls: valid, novel, volume })
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(err.detail || response.statusText);
+    }
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep the last incomplete line
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const r = JSON.parse(line);
+        if (r.ok) logScrape(`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>[${r.progress}] ${r.filename} (${r.chars} chars)`, 'ok');
+        else      logScrape(`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>[${r.progress}] ${r.filename}: ${r.error}`, 'err');
+      }
+    }
     toast(`Batch done: ${valid.length} chapters`, 'success');
   } catch (e) {
     logScrape(`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Batch error: ${e.message}`, 'err');
     toast(e.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Scrape All';
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Scrape All';
   }
 });
 document.getElementById('btn-parse-html').addEventListener('click', () => openModal('modal-html-paste'));
@@ -905,7 +929,7 @@ function updatePreview() {
   let processedMd = md;
   if (novel && volume) {
     processedMd = processedMd.replace(/!\[(.*?)\]\((images\/[^)]+)\)/g, (match, alt, relPath) => {
-      return `![${alt}](/api/images/serve?path=${encodeURIComponent(novel + '/' + volume + '/' + relPath)})`;
+      return `![${alt}](/api/images/serve?path=${encodeURIComponent(novel + '/' + volume + '/' + relPath)}&token=${window.API_KEY || ''})`;
     });
   }
   if (typeof marked !== 'undefined') {
@@ -991,7 +1015,7 @@ document.getElementById('btn-create-file').addEventListener('click', async () =>
   try {
     const form = new FormData();
     form.append('path', path);
-    const res = await fetch('/api/md/new', { method: 'POST', body: form });
+    const res = await fetch('/api/md/new', { method: 'POST', headers: { 'X-API-Key': window.API_KEY || '' }, body: form });
     if (!res.ok) throw new Error((await res.json()).detail);
     closeModal('modal-new-file');
     try {
@@ -1102,7 +1126,7 @@ async function loadImages() {
       card.className = 'image-card';
       const relPath = `${novel}/${volume}/${imgPath}`;
       const name = imgPath.split('/').pop();
-      const src = `/api/images/serve?path=${encodeURIComponent(relPath)}`;
+      const src = `/api/images/serve?path=${encodeURIComponent(relPath)}&token=${window.API_KEY || ''}`;
       card.innerHTML = `
         <img src="${src}" alt="${name}" loading="lazy"
              onerror="this.style.display='none'" style="cursor:pointer;" onclick="openLightbox('${src}')">
@@ -1142,7 +1166,7 @@ async function handleImageFiles(files) {
     form.append('novel', novel);
     form.append('volume', volume);
     try {
-      const res = await fetch('/api/images/upload', { method: 'POST', body: form });
+      const res = await fetch('/api/images/upload', { method: 'POST', headers: { 'X-API-Key': window.API_KEY || '' }, body: form });
       if (!res.ok) throw new Error((await res.json()).detail);
       ok++;
     } catch (e) {
@@ -1305,7 +1329,7 @@ document.getElementById('btn-auto-toc').addEventListener('click', async () => {
     const currentInputs = [...document.querySelectorAll('#toc-builder .toc-input')];
     let currentItems = currentInputs.map(inp => inp.value.trim()).filter(Boolean);
     if (currentItems.length === 0) {
-      currentItems.push(`[Cover (images/cover.webp)]`);
+      currentItems.push(`[Cover]`);
       currentItems.push(`[Table of Contents]`);
       currentItems.push(`[About]`);
     }
@@ -1430,7 +1454,7 @@ function logBuild(msg, cls = '') {
   const log = document.getElementById('build-log');
   const line = document.createElement('span');
   if (cls) line.className = `bl-${cls}`;
-  line.textContent = msg + '\n';
+  line.innerHTML = msg + '\n';
   log.appendChild(line);
   log.scrollTop = log.scrollHeight;
 }
@@ -1485,7 +1509,7 @@ async function startBuild() {
     toast('Build error: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Compile EPUB';
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Compile EPUB';
   }
 }
 let currentSettings = {};
@@ -1627,4 +1651,11 @@ document.getElementById('searchInput')?.addEventListener('input', e => {
     const match = lbl.textContent.toLowerCase().includes(q);
     item.style.display = (!q || match) ? '' : 'none';
   });
+});
+
+window.addEventListener('beforeunload', e => {
+  if (state.mdDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
 });

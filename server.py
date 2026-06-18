@@ -10,17 +10,39 @@ from pathlib import Path
 from typing import Optional
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Path as FastAPIPath
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 BASE_DIR = Path(__file__).parent.resolve()
 STATIC_DIR = BASE_DIR / 'static'
-VENV_PYTHON = BASE_DIR / '.venv' / 'Scripts' / 'python.exe'
+VENV_PYTHON = BASE_DIR / '.venv' / ('Scripts' if os.name == 'nt' else 'bin') / ('python.exe' if os.name == 'nt' else 'python')
 PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
 app = FastAPI(title='NarrativeOS EPUB Toolkit', version='2.0.0')
+
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:8765", "http://localhost:8765"],
+    allow_methods=["GET", "POST", "DELETE", "PUT", "OPTIONS"],
+    allow_headers=["*"],
+)
 STATIC_DIR.mkdir(exist_ok=True)
 app.mount('/static', StaticFiles(directory=str(STATIC_DIR)), name='static')
+
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+import secrets
+
+APP_TOKEN = secrets.token_hex(16)
+print(f"\\n[Security] Generated dynamic API token for this session.\\n")
+@app.middleware("http")
+async def check_auth(request: Request, call_next):
+    if request.url.path.startswith("/api/"):
+        token = request.headers.get("X-API-Key") or request.query_params.get("token")
+        if token != APP_TOKEN:
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    return await call_next(request)
 
 file_save_lock = threading.Lock()
 
@@ -63,6 +85,9 @@ class LogRequest(BaseModel):
 
 def safe_path(rel: str) -> Path:
     """Resolve a relative path safely inside BASE_DIR."""
+    if '..' in rel or ':' in rel:
+        raise HTTPException(status_code=403, detail='Invalid path characters')
+        
     p = (BASE_DIR / rel).resolve()
     if not str(p).startswith(str(BASE_DIR)):
         raise HTTPException(status_code=403, detail='Path traversal denied')
@@ -71,34 +96,27 @@ def safe_path(rel: str) -> Path:
         if rel_parts:
             if rel_parts[0] in ['static', '.venv', '__pycache__', '.git', 'scratch']:
                 raise HTTPException(status_code=403, detail='Access to system directories denied')
-            if len(rel_parts) == 1 and p.name != 'main.md' and (p.suffix in ['.py', '.ini', '.log', '.bat']):
+            if p.suffix in ['.py', '.ini', '.log', '.bat']:
                 raise HTTPException(status_code=403, detail='Access to core application files denied')
     except ValueError:
         pass
     return p
-import datetime
+
+def _sort_key_volumes(name: str) -> int:
+    nums = re.findall(r'\d+', name)
+    return int(nums[-1]) if nums else 0
+import logging
+from logging.handlers import RotatingFileHandler
+
+_logger = logging.getLogger('narrative_os')
+_logger.setLevel(logging.INFO)
+_handler = RotatingFileHandler(BASE_DIR / 'narrative_os.log', maxBytes=2*1024*1024, backupCount=1, encoding='utf-8')
+_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+_logger.addHandler(_handler)
 
 def log_event(level: str, message: str):
-    log_file = BASE_DIR / 'narrative_os.log'
-    settings = read_settings()
-    max_logs_str = settings.get('Settings', {}).get('max_logs', '1000')
-    try:
-        max_logs = int(max_logs_str)
-    except ValueError:
-        max_logs = 1000
-    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    new_entry = f'[{timestamp}] [{level.upper()}] {message}\n'
-    try:
-        with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(new_entry)
-        with open(log_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        if len(lines) > max_logs + 100:
-            lines = lines[-max_logs:]
-            with open(log_file, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
-    except:
-        pass
+    lvl = getattr(logging, level.upper(), logging.INFO)
+    _logger.log(lvl, message)
 
 def read_settings() -> dict:
     cfg = configparser.ConfigParser()
@@ -112,14 +130,15 @@ def write_settings(data: dict):
     cfg = configparser.ConfigParser()
     for section, kv in data.items():
         cfg[section] = kv
-    with open(str(BASE_DIR / 'settings.ini'), 'w', encoding='utf-8') as f:
-        cfg.write(f)
+    with file_save_lock:
+        with open(str(BASE_DIR / 'settings.ini'), 'w', encoding='utf-8') as f:
+            cfg.write(f)
 
 def list_novels() -> list:
     novels = []
     for item in BASE_DIR.iterdir():
         if item.is_dir() and (not item.name.startswith(('.', '_', 'static', 'scratch'))):
-            skip = {'.venv', '__pycache__', 'Hasil extarat', 'scratch'}
+            skip = {'.venv', '__pycache__', 'scratch'}
             if item.name not in skip:
                 novels.append(item.name)
     return sorted(novels)
@@ -157,23 +176,26 @@ def list_images(novel: str, volume: str) -> list:
 
 @app.get('/')
 def root():
-    return FileResponse(str(STATIC_DIR / 'index.html'))
+    html_content = (STATIC_DIR / 'index.html').read_text(encoding='utf-8')
+    injection = f'<script>window.API_KEY = "{APP_TOKEN}";</script>'
+    html_content = html_content.replace('<head>', f'<head>\n  {injection}')
+    return HTMLResponse(content=html_content)
 
 @app.get('/api/novels')
 def get_novels():
     return {'novels': list_novels()}
 
 @app.get('/api/novels/{novel}/volumes')
-def get_volumes(novel: str):
+def get_volumes(novel: str = FastAPIPath(..., pattern=r'^[^/\\]+$')):
     return {'volumes': list_volumes(novel)}
 
 @app.get('/api/novels/{novel}/volumes/{volume}/files')
-def get_files(novel: str, volume: str):
+def get_files(novel: str = FastAPIPath(..., pattern=r'^[^/\\]+$'), volume: str = FastAPIPath(..., pattern=r'^[^/\\]+$')):
     return {'md_files': list_md_files(novel, volume), 'images': list_images(novel, volume)}
 
 @app.post('/api/novels')
 def create_novel(req: CreateNovelRequest):
-    d = BASE_DIR / req.novel
+    d = safe_path(req.novel)
     if d.exists():
         raise HTTPException(400, 'Novel folder already exists')
     d.mkdir()
@@ -194,12 +216,7 @@ def create_volume(req: CreateVolumeRequest):
                     if (item / 'main.md').exists():
                         existing_vols.append(item.name)
         if existing_vols:
-            import re
-
-            def sort_key(name):
-                nums = re.findall('\\d+', name)
-                return int(nums[-1]) if nums else 0
-            existing_vols.sort(key=sort_key)
+            existing_vols.sort(key=_sort_key_volumes)
             prev_main = novel_dir / existing_vols[-1] / 'main.md'
             content = prev_main.read_text(encoding='utf-8')
             content = re.sub('Table of Content\\[[\\s\\S]*', 'Table of Content[\n]\n', content)
@@ -219,19 +236,40 @@ def delete_item(req: DeleteRequest):
     p = safe_path(req.path)
     if not p.exists():
         raise HTTPException(404, 'Not found')
+        
+    try:
+        rel_parts = p.relative_to(BASE_DIR).parts
+        if not rel_parts or rel_parts[0] not in list_novels():
+            raise HTTPException(403, 'Can only delete items inside a novel directory')
+    except ValueError:
+        raise HTTPException(403, 'Invalid path')
+
     if p.is_dir():
         shutil.rmtree(str(p))
     else:
         p.unlink()
+    print(f"SECURITY AUDIT: File/Directory deleted -> {p}")
     return {'ok': True}
 
 @app.post('/api/rename')
 def rename_item(req: RenameRequest):
     src = safe_path(req.old_path)
     dst = safe_path(req.new_path)
+    
+    try:
+        src_parts = src.relative_to(BASE_DIR).parts
+        if not src_parts or src_parts[0] not in list_novels():
+            raise HTTPException(403, 'Can only rename items inside a novel directory')
+        dst_parts = dst.relative_to(BASE_DIR).parts
+        if not dst_parts or dst_parts[0] not in list_novels():
+            raise HTTPException(403, 'Can only rename items into a novel directory')
+    except ValueError:
+        raise HTTPException(403, 'Invalid path')
+        
     if not src.exists():
         raise HTTPException(404, 'Source not found')
     src.rename(dst)
+    print(f"SECURITY AUDIT: File/Directory renamed -> {src} to {dst}")
     return {'ok': True}
 
 @app.get('/api/md')
@@ -245,29 +283,65 @@ def read_md(path: str):
 @app.post('/api/md')
 def save_md(req: SaveMdRequest):
     p = safe_path(req.path)
+    if p.suffix.lower() != '.md':
+        raise HTTPException(403, 'Only .md files allowed')
+    rel_parts = p.relative_to(BASE_DIR).parts
+    if not rel_parts or rel_parts[0] not in list_novels():
+        raise HTTPException(403, 'Must be inside a novel directory')
     p.parent.mkdir(parents=True, exist_ok=True)
     with file_save_lock:
         p.write_text(req.content, encoding='utf-8')
+    print(f"SECURITY AUDIT: File written -> {p}")
     return {'ok': True}
 
 @app.post('/api/md/new')
 def new_md_file(path: str=Form(...)):
     p = safe_path(path)
+    if p.suffix.lower() != '.md':
+        raise HTTPException(403, 'Only .md files allowed')
+    rel_parts = p.relative_to(BASE_DIR).parts
+    if not rel_parts or rel_parts[0] not in list_novels():
+        raise HTTPException(403, 'Must be inside a novel directory')
     if p.exists():
         raise HTTPException(400, 'File already exists')
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text('', encoding='utf-8')
+    print(f"SECURITY AUDIT: New file created -> {p}")
     return {'ok': True}
 
 @app.post('/api/images/upload')
 async def upload_image(file: UploadFile=File(...), novel: str=Form(...), volume: str=Form(...)):
+    if novel not in list_novels():
+        raise HTTPException(403, 'Must upload into an existing novel')
+        
+    file.file.seek(0, 2)
+    if file.file.tell() > 10 * 1024 * 1024:
+        raise HTTPException(413, 'File too large (max 10MB)')
+        
+    file.file.seek(0)
+    magic = file.file.read(12)
+    is_image = False
+    if magic.startswith(b'\\xff\\xd8\\xff'): is_image = True
+    elif magic.startswith(b'\\x89PNG\\r\\n\\x1a\\n'): is_image = True
+    elif magic.startswith(b'GIF8'): is_image = True
+    elif magic.startswith(b'RIFF') and magic[8:12] == b'WEBP': is_image = True
+    if not is_image:
+        raise HTTPException(403, 'Invalid image file content')
+    file.file.seek(0)
+    
     vol_dir = safe_path(f'{novel}/{volume}')
     img_dir = vol_dir / 'images'
     img_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = re.sub('[^\\w\\-.]', '_', file.filename)
+    base = Path(file.filename).stem
+    ext = Path(file.filename).suffix.lower()
+    safe_base = re.sub('[^\\w\\-]', '_', base)
+    safe_name = f"{safe_base}{ext}"
+    if Path(safe_name).suffix.lower() not in ['.png', '.jpg', '.jpeg', '.webp', '.gif']:
+        raise HTTPException(403, 'Only image files allowed')
     dest = img_dir / safe_name
     with open(str(dest), 'wb') as f:
         shutil.copyfileobj(file.file, f)
+    print(f"SECURITY AUDIT: Image uploaded -> {dest}")
     return {'ok': True, 'filename': safe_name, 'path': f'{novel}/{volume}/images/{safe_name}'}
 
 @app.get('/api/images/serve')
@@ -278,13 +352,30 @@ def serve_image(path: str):
         raise HTTPException(404, 'Image not found')
     return FileResponse(str(p))
 
+def is_safe_url(url: str) -> bool:
+    import socket, ipaddress
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(url).hostname
+        if not host: return False
+        ip_obj = ipaddress.ip_address(socket.gethostbyname(host))
+        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local)
+    except Exception:
+        return False
+
 @app.post('/api/scrape')
 def scrape_url(req: ScrapeRequest):
     """Scrape a web URL and save as .md in the target volume folder."""
+    if not is_safe_url(req.url):
+        raise HTTPException(status_code=403, detail="SSRF protection: URL resolves to internal IP")
+        
     import requests as req_lib
     from bs4 import BeautifulSoup
     import markdownify
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'}
+    
+    settings = read_settings()
+    ua = settings.get('Settings', {}).get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    headers = {'User-Agent': ua}
     try:
         if req.html_content:
             soup = BeautifulSoup(req.html_content, 'html.parser')
@@ -321,23 +412,29 @@ def scrape_url(req: ScrapeRequest):
         md_text = markdownify.markdownify(html_str, heading_style='ATX')
         md_text = re.sub('\\n{3,}', '\n\n', md_text).strip()
         fname = req.filename if req.filename.endswith('.md') else req.filename + '.md'
-        fname = re.sub('[\\\\/*?:"<>|]', '_', fname)
+        fname = re.sub('[\\\\/*?:"<>|]', '_', fname).replace('..', '')
         out_path = safe_path(f'{req.novel}/{req.volume}/{fname}')
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(md_text, encoding='utf-8')
         return {'ok': True, 'filename': fname, 'chars': len(md_text)}
     except Exception as e:
-        raise HTTPException(500, f'Scrape error: {e}')
+        print(f"Scrape error: {e}")
+        raise HTTPException(500, 'An internal error occurred while scraping.')
+
+build_lock = threading.Lock()
 
 @app.post('/api/build')
 def build_epub(req: BuildRequest):
     """Run build_novel.py for a specific volume folder."""
-    vol_dir = safe_path(f'{req.novel}/{req.volume}')
-    if not vol_dir.is_dir():
-        raise HTTPException(404, 'Volume folder not found')
-    build_script = str(BASE_DIR / 'build_novel.py')
-    cmd = [PYTHON, build_script, str(vol_dir)]
+    if not build_lock.acquire(blocking=False):
+        raise HTTPException(429, 'A build is already in progress, please wait.')
     try:
+        vol_dir = safe_path(f'{req.novel}/{req.volume}')
+        if not vol_dir.is_dir():
+            raise HTTPException(404, 'Volume folder not found')
+        build_script = str(BASE_DIR / 'build_novel.py')
+        cmd = [PYTHON, build_script, str(vol_dir)]
+        
         result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=300, cwd=str(BASE_DIR))
         stdout = result.stdout or ''
         stderr = result.stderr or ''
@@ -350,7 +447,10 @@ def build_epub(req: BuildRequest):
     except subprocess.TimeoutExpired:
         raise HTTPException(504, 'Build timed out after 300 seconds')
     except Exception as e:
-        raise HTTPException(500, f'Build error: {e}')
+        print(f"Build error: {e}")
+        raise HTTPException(500, 'An internal error occurred while building.')
+    finally:
+        build_lock.release()
 
 @app.get('/api/settings')
 def get_settings():
@@ -390,12 +490,7 @@ def get_mainmd(novel: str, volume: str):
                 if (item / 'main.md').exists():
                     existing_vols.append(item.name)
     if existing_vols:
-        import re
-
-        def sort_key(name):
-            nums = re.findall('\\d+', name)
-            return int(nums[-1]) if nums else 0
-        existing_vols.sort(key=sort_key)
+        existing_vols.sort(key=_sort_key_volumes)
         prev_main = novel_dir / existing_vols[-1] / 'main.md'
         content = prev_main.read_text(encoding='utf-8')
         content = re.sub('Table of Content\\[[\\s\\S]*', 'Table of Content[\n]\n', content)
@@ -421,12 +516,16 @@ class BatchScrapeRequest(BaseModel):
 
 @app.post('/api/scrape/batch')
 def batch_scrape(req: BatchScrapeRequest):
-    results = []
-    for item in req.urls:
-        single = ScrapeRequest(url=item.get('url', ''), novel=req.novel, volume=req.volume, filename=item.get('filename', 'chapter.md'))
-        try:
-            r = scrape_url(single)
-            results.append({'filename': single.filename, 'ok': True, 'chars': r.get('chars', 0)})
-        except Exception as e:
-            results.append({'filename': single.filename, 'ok': False, 'error': str(e)})
-    return {'results': results}
+    if len(req.urls) > 30:
+        raise HTTPException(429, 'Too many URLs to scrape at once (max 30)')
+    def generator():
+        for i, item in enumerate(req.urls, 1):
+            single = ScrapeRequest(url=item.get('url', ''), novel=req.novel, volume=req.volume, filename=item.get('filename', 'chapter.md'))
+            try:
+                r = scrape_url(single)
+                res = {'filename': single.filename, 'ok': True, 'chars': r.get('chars', 0), 'progress': f'{i}/{len(req.urls)}'}
+            except Exception as e:
+                res = {'filename': single.filename, 'ok': False, 'error': str(e), 'progress': f'{i}/{len(req.urls)}'}
+            yield json.dumps(res) + '\n'
+            
+    return StreamingResponse(generator(), media_type="application/x-ndjson")

@@ -121,13 +121,30 @@ def update_md_image_references(base_dir, old_name, new_name):
             except Exception as e:
                 print(f'  Warning: Could not update references in {fname}: {e}')
 
+def is_safe_url(url: str) -> bool:
+    import socket, ipaddress
+    import urllib.parse
+    try:
+        host = urllib.parse.urlparse(url).hostname
+        if not host: return False
+        ip_obj = ipaddress.ip_address(socket.gethostbyname(host))
+        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local)
+    except Exception:
+        return False
+
 def download_url(url, dest_path, retries=None, timeout=None):
     """Download a URL to dest_path with retry logic. Returns True on success."""
+    if not is_safe_url(url):
+        print(f"Skipping unsafe URL (SSRF blocked): {url}")
+        return False
+        
     if retries is None:
         retries = SETTINGS['download_retries']
     if timeout is None:
         timeout = SETTINGS['download_timeout']
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    ua = SETTINGS.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    headers = {'User-Agent': ua}
     if 'cdn.asdasdhg.com' in url:
         headers['Referer'] = 'https://kdtnovels.net/'
     for attempt in range(1, retries + 1):
@@ -225,21 +242,14 @@ def download_online_images(base_dir, md_text):
         return f'(image) [images/{filename}]'
     return pattern.sub(replacer, md_text)
 
-def build_novel(args=None):
-    parser = argparse.ArgumentParser(description='Novel EPUB Builder')
-    parser.add_argument('folder', nargs='?', default='d:\\code iwan\\EPUB\\Teori Guru Jenius Berengsek tentang Cara Membesarkan Putri Bangsawan yang Jatuh ke Jalan Kegelapan', help='Path to the novel folder')
-    parsed_args = parser.parse_args(args)
-    base_dir = parsed_args.folder
-    if not os.path.exists(base_dir):
-        print(f'Error: Folder not found: {base_dir}')
-        return
-    auto_compress_folder(base_dir)
-    main_md_path = os.path.join(base_dir, 'main.md')
-    if not os.path.exists(main_md_path):
-        print(f'Error: main.md not found in {base_dir}')
-        return
-    with open(main_md_path, 'r', encoding='utf-8') as f:
-        content = f.read()
+def find_image(base_dir, filename):
+    for f in ('images', 'Ilustrasi', 'Ilustarasi'):
+        p = os.path.join(base_dir, f, filename)
+        if os.path.exists(p): return p
+    return os.path.join(base_dir, 'images', filename)
+
+
+def parse_metadata(base_dir, content):
     title_indo = re.search('Title Indonesia\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     title_en = re.search('Title Inggris\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     title_romaji = re.search('Title Romanji\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
@@ -269,6 +279,7 @@ def build_novel(args=None):
     else:
         title = os.path.basename(base_dir)
         primary_title_label = 'Title'
+    vol_str = ''
     volume_match = re.search('Volume\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     if volume_match and volume_match.group(1).strip():
         vol_str = volume_match.group(1).strip()
@@ -307,6 +318,240 @@ def build_novel(args=None):
         about_body_elements.append('  </div>')
         about_body_elements.append('</div>')
         about_body_html = '\n'.join(about_body_elements)
+    
+    return {
+        'title': title,
+        'author': author,
+        'cover_rel_path': cover_rel_path,
+        'about_body_html': about_body_html,
+        'has_about': has_about,
+        'volume': vol_str
+    }
+
+def add_image_to_manifest(filename, src_path, images_dir, manifest_items, is_cover=False):
+    if not os.path.exists(src_path):
+        print(f'Warning: Image not found at {src_path}')
+        return ''
+    ext = filename.lower().split('.')[-1]
+    if ext in ('png', 'jpg', 'jpeg') and Image is not None:
+        webp_filename = os.path.splitext(filename)[0] + '.webp'
+        dest_path = os.path.join(images_dir, webp_filename)
+        if not os.path.exists(dest_path):
+            try:
+                with Image.open(src_path) as img:
+                    img_copy = img.copy()
+                if img_copy.mode in ('RGBA', 'LA', 'P'):
+                    img_save = img_copy.convert('RGBA')
+                else:
+                    img_save = img_copy.convert('RGB')
+                img_save.save(dest_path, format='WEBP', quality=90, method=4)
+            except Exception as e:
+                print(f'  Warning: WebP conversion failed for {filename}, using original: {e}')
+                dest_path = os.path.join(images_dir, filename)
+                if not os.path.exists(dest_path):
+                    shutil.copy2(src_path, dest_path)
+                webp_filename = filename
+        filename = webp_filename
+    else:
+        dest_path = os.path.join(images_dir, filename)
+        if not os.path.exists(dest_path):
+            shutil.copy2(src_path, dest_path)
+    img_id = 'cover-img' if is_cover else f'img-{filename}'
+    img_id = re.sub('[^a-zA-Z0-9_.-]', '_', img_id)
+    if img_id and img_id[0].isdigit():
+        img_id = 'i_' + img_id
+    if any((item['id'] == img_id for item in manifest_items)):
+        return filename
+    media_type = 'image/webp'
+    if not filename.lower().endswith('.webp'):
+        ext = filename.lower().split('.')[-1]
+        media_type = f'image/{ext}' if ext != 'jpg' else 'image/jpeg'
+    manifest_item = {'id': img_id, 'href': f'images/{filename}', 'media-type': media_type}
+    if is_cover:
+        manifest_item['properties'] = 'cover-image'
+    manifest_items.append(manifest_item)
+    return filename
+
+def process_cover(cover_rel_path, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template):
+    if not cover_rel_path: return
+    if cover_rel_path.lower().startswith(('http://', 'https://')):
+        src_images_dir = os.path.join(base_dir, 'images')
+        os.makedirs(src_images_dir, exist_ok=True)
+        parsed = urllib.parse.urlparse(cover_rel_path)
+        clean_url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+        cover_filename = os.path.basename(parsed.path) or 'cover.jpg'
+        cover_src = os.path.join(src_images_dir, cover_filename)
+        if not os.path.exists(cover_src):
+            print(f'Downloading cover from {clean_url}...')
+            download_url(clean_url, cover_src)
+        if os.path.exists(cover_src):
+            new_cover_src = compress_image(cover_src)
+            if new_cover_src != cover_src:
+                cover_src = new_cover_src
+                cover_filename = os.path.basename(cover_src)
+    else:
+        cover_src = os.path.join(base_dir, cover_rel_path)
+        if not os.path.exists(cover_src):
+            for folder in ['images', 'Ilustrasi', 'Ilustarasi']:
+                for target in ['images', 'Ilustrasi', 'Ilustarasi']:
+                    if folder in cover_src:
+                        candidate = cover_src.replace(folder, target)
+                        if os.path.exists(candidate):
+                            cover_src = candidate
+                            break
+    actual_c_filename = add_image_to_manifest(os.path.basename(cover_src), cover_src, images_dir, manifest_items, is_cover=True)
+    if actual_c_filename:
+        cover_html = f'<div class="full-page-image"><img src="../images/{actual_c_filename}" alt="Cover" /></div>\n'
+        xhtml_content = xhtml_template.format(title='Cover', body=cover_html)
+        out_filename = 'cover.xhtml'
+        out_path = os.path.join(xhtml_dir, out_filename)
+        with open(out_path, 'w', encoding='utf-8') as out_f:
+            out_f.write(xhtml_content)
+        manifest_items.append({'id': 'cover_page', 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
+        spine_items.append({'id': 'cover_page', 'title': 'Cover'})
+
+def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern):
+    file_path = os.path.join(base_dir, filename)
+    if not os.path.exists(file_path):
+        for df in os.listdir(base_dir):
+            if df.lower() == filename.lower():
+                file_path = os.path.join(base_dir, df)
+                break
+    if not os.path.exists(file_path):
+        print(f'Warning: Chapter file not found: {filename}')
+        return chapter_idx
+    print(f'Processing: {filename}')
+    with open(file_path, 'r', encoding='utf-8') as cf:
+        md_text = cf.read()
+    new_md_text = download_online_images(base_dir, md_text)
+    if new_md_text != md_text:
+        print(f'Updating {filename} with local image references...')
+        temp_path = file_path + '.tmp'
+        with open(temp_path, 'w', encoding='utf-8') as cf:
+            cf.write(new_md_text)
+        os.replace(temp_path, file_path)
+        md_text = new_md_text
+    ch_title = filename.replace('.md', '').replace('.MD', '')
+    first_heading = re.search('^#\\s+(.*)', md_text, flags=re.MULTILINE)
+    if first_heading:
+        ch_title = first_heading.group(1).strip()
+    else:
+        for line in md_text.split('\n'):
+            line_stripped = line.strip()
+            if line_stripped and (not line_stripped.startswith('(image)')) and (not line_stripped.startswith('![')):
+                ch_title = line_stripped
+                break
+    matches = list(inline_img_pattern.finditer(md_text))
+    segments = []
+    last_pos = 0
+    for match in matches:
+        start, end = match.span()
+        text_segment = md_text[last_pos:start]
+        segments.append(('text', text_segment))
+        img_filename = match.group(1)
+        segments.append(('image', img_filename))
+        last_pos = end
+    text_segment = md_text[last_pos:]
+    segments.append(('text', text_segment))
+    filtered_segments = []
+    for seg_type, val in segments:
+        if seg_type == 'text':
+            if val.strip():
+                filtered_segments.append((seg_type, val))
+        else:
+            filtered_segments.append((seg_type, val))
+    if not filtered_segments:
+        return chapter_idx
+    has_text = any((seg_type == 'text' for seg_type, _ in filtered_segments))
+    if not has_text:
+        illus_html_list = []
+        for seg_type, val in filtered_segments:
+            if seg_type == 'image':
+                img_filename = val
+                src = find_image(base_dir, img_filename)
+                actual_img = add_image_to_manifest(img_filename, src, images_dir, manifest_items)
+                if actual_img:
+                    illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>')
+        if illus_html_list:
+            illus_body = '\n'.join(illus_html_list)
+            xhtml_content = xhtml_template.format(title=ch_title, body=illus_body)
+            out_filename = f'chapter-{chapter_idx:02d}-01.xhtml'
+            out_path = os.path.join(xhtml_dir, out_filename)
+            with open(out_path, 'w', encoding='utf-8') as out_f:
+                out_f.write(xhtml_content)
+            ch_id = f'ch{chapter_idx:02d}_01'
+            manifest_items.append({'id': ch_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
+            spine_items.append({'id': ch_id, 'title': ch_title})
+            chapter_idx += 1
+        return chapter_idx
+    part_idx = 1
+    first_text_segment_done = False
+    for seg_type, val in filtered_segments:
+        if seg_type == 'text':
+            segment_text = process_markdown_tricks(val)
+            segment_html = markdown.markdown(segment_text, extensions=['tables', 'fenced_code'])
+            if not first_text_segment_done:
+                first_text_segment_done = True
+                if SETTINGS['drop_cap']:
+                    segment_html = add_dropcap(segment_html)
+            else:
+                segment_html = remove_first_p_indent(segment_html)
+            xhtml_content = xhtml_template.format(title=ch_title, body=segment_html)
+            out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
+            out_path = os.path.join(xhtml_dir, out_filename)
+            with open(out_path, 'w', encoding='utf-8') as out_f:
+                out_f.write(xhtml_content)
+            ch_id = f'ch{chapter_idx:02d}_{part_idx:02d}'
+            manifest_items.append({'id': ch_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
+            is_first_part = part_idx == 1
+            spine_item = {'id': ch_id, 'title': ch_title}
+            if not is_first_part:
+                spine_item['exclude_from_toc'] = True
+            spine_items.append(spine_item)
+            part_idx += 1
+        elif seg_type == 'image':
+            img_filename = val
+            src = find_image(base_dir, img_filename)
+            actual_img = add_image_to_manifest(img_filename, src, images_dir, manifest_items)
+            if actual_img:
+                is_first_part = part_idx == 1
+                illus_html = f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>\n'
+                xhtml_content = xhtml_template.format(title=ch_title if is_first_part else 'Ilustrasi', body=illus_html)
+                out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
+                out_path = os.path.join(xhtml_dir, out_filename)
+                with open(out_path, 'w', encoding='utf-8') as out_f:
+                    out_f.write(xhtml_content)
+                ch_id = f'ch{chapter_idx:02d}_{part_idx:02d}'
+                manifest_items.append({'id': ch_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
+                spine_item = {'id': ch_id, 'title': ch_title if is_first_part else 'Ilustrasi'}
+                if not is_first_part:
+                    spine_item['exclude_from_toc'] = True
+                spine_items.append(spine_item)
+                part_idx += 1
+    chapter_idx += 1
+    return chapter_idx
+
+def build_novel(args=None):
+    parser = argparse.ArgumentParser(description='Novel EPUB Builder')
+    parser.add_argument('folder', nargs='?', default=None, help='Path to the novel folder')
+    parsed_args = parser.parse_args(args)
+    base_dir = parsed_args.folder
+    if not base_dir:
+        print('Error: Please provide a path to the novel folder.')
+        return
+    if not os.path.exists(base_dir):
+        print(f'Error: Folder not found: {base_dir}')
+        return
+    auto_compress_folder(base_dir)
+    main_md_path = os.path.join(base_dir, 'main.md')
+    if not os.path.exists(main_md_path):
+        print(f'Error: main.md not found in {base_dir}')
+        return
+    with open(main_md_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    meta = parse_metadata(base_dir, content)
+    
     temp_dir = tempfile.mkdtemp(prefix='epub_novel_')
     try:
         manifest_items = []
@@ -317,79 +562,10 @@ def build_novel(args=None):
         os.makedirs(xhtml_dir, exist_ok=True)
         os.makedirs(images_dir, exist_ok=True)
 
-        def add_image_to_manifest(filename, src_path, is_cover=False):
-            """Add image to manifest, converting to WebP if needed.
-            Returns the actual filename used (may be .webp) on success, or empty string on failure."""
-            if not os.path.exists(src_path):
-                print(f'Warning: Image not found at {src_path}')
-                return ''
-            ext = filename.lower().split('.')[-1]
-            if ext in ('png', 'jpg', 'jpeg') and Image is not None:
-                webp_filename = os.path.splitext(filename)[0] + '.webp'
-                dest_path = os.path.join(images_dir, webp_filename)
-                if not os.path.exists(dest_path):
-                    try:
-                        with Image.open(src_path) as img:
-                            img_copy = img.copy()
-                        if img_copy.mode in ('RGBA', 'LA', 'P'):
-                            img_save = img_copy.convert('RGBA')
-                        else:
-                            img_save = img_copy.convert('RGB')
-                        img_save.save(dest_path, format='WEBP', quality=90, method=4)
-                    except Exception as e:
-                        print(f'  Warning: WebP conversion failed for {filename}, using original: {e}')
-                        dest_path = os.path.join(images_dir, filename)
-                        if not os.path.exists(dest_path):
-                            shutil.copy2(src_path, dest_path)
-                        webp_filename = filename
-                filename = webp_filename
-            else:
-                dest_path = os.path.join(images_dir, filename)
-                if not os.path.exists(dest_path):
-                    shutil.copy2(src_path, dest_path)
-            img_id = 'cover-img' if is_cover else f'img-{filename}'
-            img_id = re.sub('[^a-zA-Z0-9_.-]', '_', img_id)
-            if img_id and img_id[0].isdigit():
-                img_id = 'i_' + img_id
-            if any((item['id'] == img_id for item in manifest_items)):
-                return filename
-            media_type = 'image/webp'
-            if not filename.lower().endswith('.webp'):
-                ext = filename.lower().split('.')[-1]
-                media_type = f'image/{ext}' if ext != 'jpg' else 'image/jpeg'
-            manifest_item = {'id': img_id, 'href': f'images/{filename}', 'media-type': media_type}
-            if is_cover:
-                manifest_item['properties'] = 'cover-image'
-            manifest_items.append(manifest_item)
-            return filename
         xhtml_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n<head>\n  <title>{title}</title>\n  <link rel="stylesheet" type="text/css" href="../css/style.css"/>\n</head>\n<body>\n{body}\n</body>\n</html>'
-        if cover_rel_path:
-            if cover_rel_path.lower().startswith(('http://', 'https://')):
-                src_images_dir = os.path.join(base_dir, 'images')
-                os.makedirs(src_images_dir, exist_ok=True)
-                parsed = urllib.parse.urlparse(cover_rel_path)
-                clean_url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
-                cover_filename = os.path.basename(parsed.path) or 'cover.jpg'
-                cover_src = os.path.join(src_images_dir, cover_filename)
-                if not os.path.exists(cover_src):
-                    print(f'Downloading cover from {clean_url}...')
-                    download_url(clean_url, cover_src)
-                if os.path.exists(cover_src):
-                    new_cover_src = compress_image(cover_src)
-                    if new_cover_src != cover_src:
-                        cover_src = new_cover_src
-                        cover_filename = os.path.basename(cover_src)
-            else:
-                cover_src = os.path.join(base_dir, cover_rel_path)
-                if not os.path.exists(cover_src):
-                    for folder in ['images', 'Ilustrasi', 'Ilustarasi']:
-                        for target in ['images', 'Ilustrasi', 'Ilustarasi']:
-                            if folder in cover_src:
-                                candidate = cover_src.replace(folder, target)
-                                if os.path.exists(candidate):
-                                    cover_src = candidate
-                                    break
-            add_image_to_manifest(os.path.basename(cover_src), cover_src, is_cover=True)
+        
+        process_cover(meta['cover_rel_path'], base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template)
+        
         chapter_idx = 1
         inline_img_pattern = re.compile('\\(image\\)\\s*\\[(?:.*?[\\/\\\\])?([^\\/\\]\\\\ ]+\\.(?:webp|jpg|jpeg|png))\\]', re.IGNORECASE)
         toc_start_idx = content.lower().find('table of content')
@@ -410,56 +586,15 @@ def build_novel(args=None):
                 raw_toc_items.append(line[1:-1])
         toc_items = [item.strip() for item in raw_toc_items if item.strip()]
         for item in toc_items:
-            cover_match = re.match('^Cover\\s*\\((.*?)\\)$', item, flags=re.IGNORECASE)
-            if cover_match:
-                c_path = cover_match.group(1).strip()
-                if c_path.lower().startswith(('http://', 'https://')):
-                    src_images_dir = os.path.join(base_dir, 'images')
-                    os.makedirs(src_images_dir, exist_ok=True)
-                    parsed = urllib.parse.urlparse(c_path)
-                    clean_url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
-                    cover_filename = os.path.basename(parsed.path) or 'cover.jpg'
-                    c_src = os.path.join(src_images_dir, cover_filename)
-                    if not os.path.exists(c_src):
-                        print(f'Downloading cover from {clean_url}...')
-                        download_url(clean_url, c_src)
-                    if os.path.exists(c_src):
-                        new_c_src = compress_image(c_src)
-                        if new_c_src != c_src:
-                            c_src = new_c_src
-                            cover_filename = os.path.basename(c_src)
-                    c_filename = cover_filename
-                else:
-                    c_src = os.path.join(base_dir, c_path)
-                    c_filename = os.path.basename(c_src)
-                    if not os.path.exists(c_src):
-                        c_src = os.path.join(base_dir, 'images', c_filename)
-                    if not os.path.exists(c_src):
-                        c_src = os.path.join(base_dir, 'Ilustrasi', c_filename)
-                    if not os.path.exists(c_src):
-                        c_src = os.path.join(base_dir, 'Ilustarasi', c_filename)
-                actual_c_filename = add_image_to_manifest(c_filename, c_src)
-                if actual_c_filename:
-                    cover_html = f'<div class="full-page-image"><img src="../images/{actual_c_filename}" alt="Cover" /></div>\n'
-                    xhtml_content = xhtml_template.format(title='Cover', body=cover_html)
-                    out_filename = 'cover.xhtml'
-                    out_path = os.path.join(xhtml_dir, out_filename)
-                    with open(out_path, 'w', encoding='utf-8') as out_f:
-                        out_f.write(xhtml_content)
-                    manifest_items.append({'id': 'cover_page', 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
-                    spine_items.append({'id': 'cover_page', 'title': 'Cover'})
+            if item.lower().startswith('cover'):
                 continue
             illus_match = re.match('^(?:Ilustra(?:s|a)i|images)(?:\\(folder\\))?\\((.*?)\\)$', item, flags=re.IGNORECASE)
             if illus_match:
                 folder_images = [os.path.basename(img.strip()) for img in illus_match.group(1).split(',') if img.strip()]
                 illus_html_list = []
                 for img_name in folder_images:
-                    img_src = os.path.join(base_dir, 'images', img_name)
-                    if not os.path.exists(img_src):
-                        img_src = os.path.join(base_dir, 'Ilustrasi', img_name)
-                    if not os.path.exists(img_src):
-                        img_src = os.path.join(base_dir, 'Ilustarasi', img_name)
-                    actual_img_name = add_image_to_manifest(img_name, img_src)
+                    img_src = find_image(base_dir, img_name)
+                    actual_img_name = add_image_to_manifest(img_name, img_src, images_dir, manifest_items)
                     if actual_img_name:
                         illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img_name}" alt="Illustration" /></div>')
                 if illus_html_list:
@@ -477,8 +612,8 @@ def build_novel(args=None):
                 spine_items.append({'id': 'nav', 'title': 'Table of Contents'})
                 continue
             if item.lower() == 'about':
-                if has_about:
-                    about_html = xhtml_template.format(title='About', body=about_body_html)
+                if meta['has_about']:
+                    about_html = xhtml_template.format(title='About', body=meta['about_body_html'])
                     out_filename = 'about.xhtml'
                     out_path = os.path.join(xhtml_dir, out_filename)
                     with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -489,143 +624,22 @@ def build_novel(args=None):
             chapter_match = re.match('^(.*?\\.md)\\s*\\(file\\)$', item, flags=re.IGNORECASE)
             if chapter_match:
                 filename = chapter_match.group(1).strip()
-                filename = filename.replace('Boonus Chapter.md', 'Bonus Chapter.md')
-                file_path = os.path.join(base_dir, filename)
-                if not os.path.exists(file_path):
-                    for df in os.listdir(base_dir):
-                        if df.lower() == filename.lower():
-                            file_path = os.path.join(base_dir, df)
-                            break
-                if os.path.exists(file_path):
-                    print(f'Processing: {filename}')
-                    with open(file_path, 'r', encoding='utf-8') as cf:
-                        md_text = cf.read()
-                    new_md_text = download_online_images(base_dir, md_text)
-                    if new_md_text != md_text:
-                        print(f'Updating {filename} with local image references...')
-                        with open(file_path, 'w', encoding='utf-8') as cf:
-                            cf.write(new_md_text)
-                        md_text = new_md_text
-                    ch_title = filename.replace('.md', '').replace('.MD', '')
-                    first_heading = re.search('^#\\s+(.*)', md_text, flags=re.MULTILINE)
-                    if first_heading:
-                        ch_title = first_heading.group(1).strip()
-                    else:
-                        for line in md_text.split('\n'):
-                            line_stripped = line.strip()
-                            if line_stripped and (not line_stripped.startswith('(image)')) and (not line_stripped.startswith('![')):
-                                ch_title = line_stripped
-                                break
-                    matches = list(inline_img_pattern.finditer(md_text))
-                    segments = []
-                    last_pos = 0
-                    for match in matches:
-                        start, end = match.span()
-                        text_segment = md_text[last_pos:start]
-                        segments.append(('text', text_segment))
-                        img_filename = match.group(1)
-                        segments.append(('image', img_filename))
-                        last_pos = end
-                    text_segment = md_text[last_pos:]
-                    segments.append(('text', text_segment))
-                    filtered_segments = []
-                    for seg_type, val in segments:
-                        if seg_type == 'text':
-                            if val.strip():
-                                filtered_segments.append((seg_type, val))
-                        else:
-                            filtered_segments.append((seg_type, val))
-                    if not filtered_segments:
-                        continue
-                    has_text = any((seg_type == 'text' for seg_type, _ in filtered_segments))
-                    if not has_text:
-                        illus_html_list = []
-                        for seg_type, val in filtered_segments:
-                            if seg_type == 'image':
-                                img_filename = val
-                                src = os.path.join(base_dir, 'images', img_filename)
-                                if not os.path.exists(src):
-                                    src = os.path.join(base_dir, 'Ilustrasi', img_filename)
-                                if not os.path.exists(src):
-                                    src = os.path.join(base_dir, 'Ilustarasi', img_filename)
-                                actual_img = add_image_to_manifest(img_filename, src)
-                                if actual_img:
-                                    illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>')
-                        if illus_html_list:
-                            illus_body = '\n'.join(illus_html_list)
-                            xhtml_content = xhtml_template.format(title=ch_title, body=illus_body)
-                            out_filename = f'chapter-{chapter_idx:02d}-01.xhtml'
-                            out_path = os.path.join(xhtml_dir, out_filename)
-                            with open(out_path, 'w', encoding='utf-8') as out_f:
-                                out_f.write(xhtml_content)
-                            ch_id = f'ch{chapter_idx:02d}_01'
-                            manifest_items.append({'id': ch_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
-                            spine_items.append({'id': ch_id, 'title': ch_title})
-                            chapter_idx += 1
-                        continue
-                    part_idx = 1
-                    first_text_segment_done = False
-                    for seg_type, val in filtered_segments:
-                        if seg_type == 'text':
-                            segment_text = process_markdown_tricks(val)
-                            segment_html = markdown.markdown(segment_text, extensions=['tables', 'fenced_code'])
-                            if not first_text_segment_done:
-                                first_text_segment_done = True
-                                if SETTINGS['drop_cap']:
-                                    segment_html = add_dropcap(segment_html)
-                            else:
-                                segment_html = remove_first_p_indent(segment_html)
-                            xhtml_content = xhtml_template.format(title=ch_title, body=segment_html)
-                            out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
-                            out_path = os.path.join(xhtml_dir, out_filename)
-                            with open(out_path, 'w', encoding='utf-8') as out_f:
-                                out_f.write(xhtml_content)
-                            ch_id = f'ch{chapter_idx:02d}_{part_idx:02d}'
-                            manifest_items.append({'id': ch_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
-                            is_first_part = part_idx == 1
-                            spine_item = {'id': ch_id, 'title': ch_title}
-                            if not is_first_part:
-                                spine_item['exclude_from_toc'] = True
-                            spine_items.append(spine_item)
-                            part_idx += 1
-                        elif seg_type == 'image':
-                            img_filename = val
-                            src = os.path.join(base_dir, 'images', img_filename)
-                            if not os.path.exists(src):
-                                src = os.path.join(base_dir, 'Ilustrasi', img_filename)
-                            if not os.path.exists(src):
-                                src = os.path.join(base_dir, 'Ilustarasi', img_filename)
-                            actual_img = add_image_to_manifest(img_filename, src)
-                            if actual_img:
-                                is_first_part = part_idx == 1
-                                illus_html = f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>\n'
-                                xhtml_content = xhtml_template.format(title=ch_title if is_first_part else 'Ilustrasi', body=illus_html)
-                                out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
-                                out_path = os.path.join(xhtml_dir, out_filename)
-                                with open(out_path, 'w', encoding='utf-8') as out_f:
-                                    out_f.write(xhtml_content)
-                                ch_id = f'ch{chapter_idx:02d}_{part_idx:02d}'
-                                manifest_items.append({'id': ch_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
-                                spine_item = {'id': ch_id, 'title': ch_title if is_first_part else 'Ilustrasi'}
-                                if not is_first_part:
-                                    spine_item['exclude_from_toc'] = True
-                                spine_items.append(spine_item)
-                                part_idx += 1
-                    chapter_idx += 1
-                else:
-                    print(f'Warning: Chapter file not found: {filename}')
+                chapter_idx = process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern)
                 continue
             else:
                 print(f"Warning: Unrecognized TOC item: '{item}'")
-        metadata = {'title': title, 'author': author, 'language': SETTINGS['language'], 'fixed_layout': False}
+        metadata = {'title': meta['title'], 'author': meta['author'], 'language': SETTINGS['language'], 'fixed_layout': False}
         epub_builder.stage_5_package_assembly(metadata, manifest_items, spine_items, temp_dir, settings=SETTINGS)
+        parent_folder_name = os.path.basename(os.path.dirname(base_dir))
+        volume_meta = meta.get('volume', '').strip()
         novel_folder_name = os.path.basename(base_dir)
-        try:
-            vol_match = re.search('Volume\\s*(\\d+)', novel_folder_name, flags=re.IGNORECASE)
-            volume_num = vol_match.group(1) if vol_match else ''
-        except:
-            volume_num = ''
-        epub_name = SETTINGS['output_name_format'].format(title=title, volume=volume_num, folder_name=novel_folder_name)
+            
+        epub_name = SETTINGS['output_name_format'].format(
+            title=meta['title'], 
+            volume=volume_meta, 
+            folder_name=novel_folder_name,
+            parent_folder_name=parent_folder_name
+        ).strip()
         safe_name = ''.join([c for c in epub_name if c.isalpha() or c.isdigit() or c in ' -_']).strip()
         safe_name = safe_name.replace(' ', '_')
         if SETTINGS['output_location'].lower() == 'same':
@@ -638,10 +652,11 @@ def build_novel(args=None):
         epub_size_mb = os.path.getsize(output_epub) / 1024 / 1024
         ch_count = sum((1 for s in spine_items if isinstance(s, dict) and s.get('id', '').endswith('_01') and s.get('id', '').startswith('ch')))
         img_count = sum((1 for m in manifest_items if m.get('media-type', '').startswith('image/')))
-        print(f'\n✅ Done! {title}')
+        print(f'\n✅ Done! {meta["title"]}')
         print(f'   📚 {ch_count} chapter(s)  |  🖼  {img_count} image(s)  |  📦 {epub_size_mb:.1f} MB')
         print(f'   📄 {output_epub}\n')
     finally:
         shutil.rmtree(temp_dir)
+
 if __name__ == '__main__':
     build_novel()
