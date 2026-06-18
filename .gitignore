@@ -34,3 +34,16 @@ test*.html
 # Ignore build artifacts
 *.epub
 scratch/
+
+# Ignore scratch files
+AI_EPUB_Instruction.md
+NarrativeOS_Upgrade_Roadmap.md
+Panduan_Gaya_dan_Trik.md
+UI_UX_Recommendations.md
+add_titles.py
+audit_novels.py
+compress_images.py
+recover_md.py
+replace_emojis.py
+scratch_audit.py
+ultimate-epub-conversion-guide.md
