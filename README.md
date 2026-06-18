@@ -6,6 +6,20 @@ Built originally to circumvent complex anti-scraping measures on translation sit
 
 ---
 
+## 📝 Version History
+
+### v1.1.061826 (Latest Update)
+- **UI Upgrade**: Replaced the basic sidebar with a modern Flexbox icon rail and a sleek, collapsible detail panel for the Library tree.
+- **Deep Clean**: Stripped all comments from the core codebase (`server.py`, `build_novel.py`, `epub_builder.py`, `app.js`, `style.css`) for maximum efficiency.
+- **Security & Bug Fixes**:
+  - Implemented a threading lock (`threading.Lock`) in `server.py` to prevent data corruption during simultaneous Markdown saves (Race Condition fix).
+  - Mitigated a severe ReDoS (Regex Denial of Service) vulnerability in the Table of Contents extraction logic.
+  - Added strict HTML escaping (`html.escape`) to custom Markdown elements to prevent HTML Injection/XSS and XML structure breakage.
+  - Improved network failure handling so broken images are safely ignored rather than crashing the EPUB compilation.
+  - Fixed absolute path resolution for `epubcheck.jar` so validation runs reliably from any directory.
+
+---
+
 ## 🌟 Key Features
 
 ### 🌐 Web → Markdown Scraper
