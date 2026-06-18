@@ -402,8 +402,14 @@ function syncSelectsTo(novel, volume) {
     setSelectValue('editor-volume-select', volume);
     editorVolumeChange();
   });
-  imgNovelChange().then(() => setSelectValue('img-volume-select', volume));
-  metaNovelChange().then(() => setSelectValue('meta-volume-select', volume));
+  imgNovelChange().then(() => {
+    setSelectValue('img-volume-select', volume);
+    imgVolumeChange();
+  });
+  metaNovelChange().then(() => {
+    setSelectValue('meta-volume-select', volume);
+    metaVolumeChange();
+  });
   buildNovelChange().then(() => setSelectValue('build-volume-select', volume));
 }
 document.getElementById('btn-refresh-lib').addEventListener('click', () => {
