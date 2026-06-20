@@ -123,12 +123,20 @@ def update_md_image_references(base_dir, old_name, new_name):
 
 def is_safe_url(url: str) -> bool:
     import socket, ipaddress
-    import urllib.parse
+    from urllib.parse import urlparse
     try:
-        host = urllib.parse.urlparse(url).hostname
-        if not host: return False
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        host = parsed.hostname
+        if not host: 
+            return False
+        # Block attempts to hit alternative local representations
+        if host in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
+            return False
+            
         ip_obj = ipaddress.ip_address(socket.gethostbyname(host))
-        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local)
+        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast)
     except Exception:
         return False
 
@@ -239,7 +247,7 @@ def download_online_images(base_dir, md_text):
             if new_path != local_path:
                 filename = os.path.basename(new_path)
                 local_path = new_path
-        return f'(image) [images/{filename}]'
+        return f'![{match.group(1)}]({filename})'
     return pattern.sub(replacer, md_text)
 
 def find_image(base_dir, filename):
@@ -250,32 +258,40 @@ def find_image(base_dir, filename):
 
 
 def parse_metadata(base_dir, content):
-    title_indo = re.search('Title Indonesia\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
-    title_en = re.search('Title Inggris\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
-    title_romaji = re.search('Title Romanji\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
-    title_japan = re.search('Title Japan\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
+    # Dynamically extract all Title fields
+    title_matches = re.findall(r'Title (.*?)\s*:\s*\[(.*?)\]', content, flags=re.IGNORECASE)
+    
+    title_map = {}
+    label_map = {}
+    for lang, val in title_matches:
+        if val.strip():
+            lang_clean = lang.strip().lower()
+            title_map[lang_clean] = val.strip()
+            label_map[lang_clean] = f"Title {lang.strip()}"
+            
+    # Mapping for legacy codes
+    legacy_map = {'id': 'indonesia', 'en': 'inggris', 'jp': 'japan', 'romaji': 'romanji'}
+    
     author_match = re.search('Author\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     cover_match = re.search('Cover\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     primary_override = re.search('Primary Title\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     primary_lang = primary_override.group(1).strip().lower() if primary_override else None
-    title_map = {'id': title_indo, 'en': title_en, 'romaji': title_romaji, 'jp': title_japan}
-    label_map = {'id': 'Title Indonesia', 'en': 'Title Inggris', 'romaji': 'Title Romanji', 'jp': 'Title Japan'}
+
+    # Resolve legacy shortcodes to full names
+    if primary_lang in legacy_map and legacy_map[primary_lang] in title_map:
+        primary_lang = legacy_map[primary_lang]
+
     primary_title_label = ''
-    if primary_lang and primary_lang in title_map and title_map[primary_lang]:
-        title = title_map[primary_lang].group(1).strip()
+    title = ''
+    
+    if primary_lang and primary_lang in title_map:
+        title = title_map[primary_lang]
         primary_title_label = label_map[primary_lang]
-    elif title_indo and title_indo.group(1).strip():
-        title = title_indo.group(1).strip()
-        primary_title_label = 'Title Indonesia'
-    elif title_en and title_en.group(1).strip():
-        title = title_en.group(1).strip()
-        primary_title_label = 'Title Inggris'
-    elif title_romaji and title_romaji.group(1).strip():
-        title = title_romaji.group(1).strip()
-        primary_title_label = 'Title Romanji'
-    elif title_japan and title_japan.group(1).strip():
-        title = title_japan.group(1).strip()
-        primary_title_label = 'Title Japan'
+    elif title_map:
+        # Fallback to the first available title
+        first_lang = list(title_map.keys())[0]
+        title = title_map[first_lang]
+        primary_title_label = label_map[first_lang]
     else:
         title = os.path.basename(base_dir)
         primary_title_label = 'Title'
@@ -448,7 +464,8 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
         start, end = match.span()
         text_segment = md_text[last_pos:start]
         segments.append(('text', text_segment))
-        img_filename = match.group(1)
+        # Group 1 = markdown alt, Group 2 = markdown file, Group 3 = legacy file
+        img_filename = match.group(2) or match.group(3)
         segments.append(('image', img_filename))
         last_pos = end
     text_segment = md_text[last_pos:]
@@ -531,6 +548,74 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
     chapter_idx += 1
     return chapter_idx
 
+def parse_toc(content: str) -> list[str]:
+    """Parse the Table of Contents section from the main.md file."""
+    toc_start_idx = content.lower().find('table of content')
+    if toc_start_idx == -1:
+        print('Error: Table of Content block not found in main.md')
+        return []
+    toc_part = content[toc_start_idx:]
+    start_bracket = toc_part.find('[')
+    end_bracket = toc_part.rfind(']')
+    if start_bracket == -1 or end_bracket == -1:
+        print('Error: Table of Content block not found or malformed')
+        return []
+    toc_block = toc_part[start_bracket+1:end_bracket]
+    raw_toc_items = []
+    for line in toc_block.split('\n'):
+        line = line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            raw_toc_items.append(line[1:-1])
+    return [item.strip() for item in raw_toc_items if item.strip()]
+
+def process_toc_items(toc_items: list[str], base_dir: str, xhtml_dir: str, images_dir: str, manifest_items: list, spine_items: list, xhtml_template: str, meta: dict, inline_img_pattern: re.Pattern) -> int:
+    """Process each item in the parsed Table of Contents."""
+    chapter_idx = 1
+    for item in toc_items:
+        if item.lower().startswith('cover'):
+            continue
+        illus_match = re.match('^(?:Ilustra(?:s|a)i|images)(?:\\(folder\\))?\\((.*?)\\)$', item, flags=re.IGNORECASE)
+        if illus_match:
+            folder_images = [os.path.basename(img.strip()) for img in illus_match.group(1).split(',') if img.strip()]
+            illus_html_list = []
+            for img_name in folder_images:
+                img_src = find_image(base_dir, img_name)
+                actual_img_name = add_image_to_manifest(img_name, img_src, images_dir, manifest_items)
+                if actual_img_name:
+                    illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img_name}" alt="Illustration" /></div>')
+            if illus_html_list:
+                illus_body = '\n'.join(illus_html_list)
+                xhtml_content = xhtml_template.format(title='Ilustrasi', body=illus_body)
+                out_filename = 'illustrations.xhtml'
+                out_path = os.path.join(xhtml_dir, out_filename)
+                with open(out_path, 'w', encoding='utf-8') as out_f:
+                    out_f.write(xhtml_content)
+                illus_id = 'illustrations_page'
+                manifest_items.append({'id': illus_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
+                spine_items.append({'id': illus_id, 'title': 'Ilustrasi'})
+            continue
+        if item.lower() == 'table of contents':
+            spine_items.append({'id': 'nav', 'title': 'Table of Contents'})
+            continue
+        if item.lower() == 'about':
+            if meta['has_about']:
+                about_html = xhtml_template.format(title='About', body=meta['about_body_html'])
+                out_filename = 'about.xhtml'
+                out_path = os.path.join(xhtml_dir, out_filename)
+                with open(out_path, 'w', encoding='utf-8') as out_f:
+                    out_f.write(about_html)
+                manifest_items.append({'id': 'about_page', 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
+                spine_items.append({'id': 'about_page', 'title': 'About'})
+            continue
+        chapter_match = re.match('^(.*?\\.md)\\s*\\(file\\)$', item, flags=re.IGNORECASE)
+        if chapter_match:
+            filename = chapter_match.group(1).strip()
+            chapter_idx = process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern)
+            continue
+        else:
+            print(f"Warning: Unrecognized TOC item: '{item}'")
+    return chapter_idx
+
 def build_novel(args=None):
     parser = argparse.ArgumentParser(description='Novel EPUB Builder')
     parser.add_argument('folder', nargs='?', default=None, help='Path to the novel folder')
@@ -567,67 +652,17 @@ def build_novel(args=None):
         process_cover(meta['cover_rel_path'], base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template)
         
         chapter_idx = 1
-        inline_img_pattern = re.compile('\\(image\\)\\s*\\[(?:.*?[\\/\\\\])?([^\\/\\]\\\\ ]+\\.(?:webp|jpg|jpeg|png))\\]', re.IGNORECASE)
-        toc_start_idx = content.lower().find('table of content')
-        if toc_start_idx == -1:
-            print('Error: Table of Content block not found in main.md')
+        inline_img_pattern = re.compile(
+            r'(?:!\[(.*?)\]\((?:.*?[\\/])?([^/\\)\s]+\.(?:webp|jpg|jpeg|png|gif))\)|\(image\)\s*\[(?:.*?[\\/])?([^/\]\\ ]+\.(?:webp|jpg|jpeg|png|gif))\])',
+            re.IGNORECASE
+        )
+        
+        toc_items = parse_toc(content)
+        if not toc_items:
             return
-        toc_part = content[toc_start_idx:]
-        start_bracket = toc_part.find('[')
-        end_bracket = toc_part.rfind(']')
-        if start_bracket == -1 or end_bracket == -1:
-            print('Error: Table of Content block not found or malformed')
-            return
-        toc_block = toc_part[start_bracket+1:end_bracket]
-        raw_toc_items = []
-        for line in toc_block.split('\n'):
-            line = line.strip()
-            if line.startswith('[') and line.endswith(']'):
-                raw_toc_items.append(line[1:-1])
-        toc_items = [item.strip() for item in raw_toc_items if item.strip()]
-        for item in toc_items:
-            if item.lower().startswith('cover'):
-                continue
-            illus_match = re.match('^(?:Ilustra(?:s|a)i|images)(?:\\(folder\\))?\\((.*?)\\)$', item, flags=re.IGNORECASE)
-            if illus_match:
-                folder_images = [os.path.basename(img.strip()) for img in illus_match.group(1).split(',') if img.strip()]
-                illus_html_list = []
-                for img_name in folder_images:
-                    img_src = find_image(base_dir, img_name)
-                    actual_img_name = add_image_to_manifest(img_name, img_src, images_dir, manifest_items)
-                    if actual_img_name:
-                        illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img_name}" alt="Illustration" /></div>')
-                if illus_html_list:
-                    illus_body = '\n'.join(illus_html_list)
-                    xhtml_content = xhtml_template.format(title='Ilustrasi', body=illus_body)
-                    out_filename = 'illustrations.xhtml'
-                    out_path = os.path.join(xhtml_dir, out_filename)
-                    with open(out_path, 'w', encoding='utf-8') as out_f:
-                        out_f.write(xhtml_content)
-                    illus_id = 'illustrations_page'
-                    manifest_items.append({'id': illus_id, 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
-                    spine_items.append({'id': illus_id, 'title': 'Ilustrasi'})
-                continue
-            if item.lower() == 'table of contents':
-                spine_items.append({'id': 'nav', 'title': 'Table of Contents'})
-                continue
-            if item.lower() == 'about':
-                if meta['has_about']:
-                    about_html = xhtml_template.format(title='About', body=meta['about_body_html'])
-                    out_filename = 'about.xhtml'
-                    out_path = os.path.join(xhtml_dir, out_filename)
-                    with open(out_path, 'w', encoding='utf-8') as out_f:
-                        out_f.write(about_html)
-                    manifest_items.append({'id': 'about_page', 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
-                    spine_items.append({'id': 'about_page', 'title': 'About'})
-                continue
-            chapter_match = re.match('^(.*?\\.md)\\s*\\(file\\)$', item, flags=re.IGNORECASE)
-            if chapter_match:
-                filename = chapter_match.group(1).strip()
-                chapter_idx = process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern)
-                continue
-            else:
-                print(f"Warning: Unrecognized TOC item: '{item}'")
+            
+        process_toc_items(toc_items, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, meta, inline_img_pattern)
+        
         metadata = {'title': meta['title'], 'author': meta['author'], 'language': SETTINGS['language'], 'fixed_layout': False}
         epub_builder.stage_5_package_assembly(metadata, manifest_items, spine_items, temp_dir, settings=SETTINGS)
         parent_folder_name = os.path.basename(os.path.dirname(base_dir))

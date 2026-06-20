@@ -386,6 +386,16 @@
               <label class="label">Title (Romanji) <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
               <input class="input" id="meta-title-ro" placeholder="Romanji Title — leave blank to skip">
             </div>
+
+            <!-- Dynamic Languages Container -->
+            <div id="custom-lang-container" style="display:flex;flex-direction:column;gap:16px;"></div>
+            
+            <div style="margin-top:4px;margin-bottom:16px;">
+              <button class="btn btn-ghost btn-sm" id="btn-add-language" type="button" style="color:var(--accent);border:1px dashed var(--border-focus);width:100%;justify-content:center;cursor:pointer;transition:all 0.2s;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Language
+              </button>
+            </div>
             <div class="field">
               <label class="label">Volume <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
               <input class="input" id="meta-volume-num" placeholder="e.g. 1">
@@ -561,11 +571,11 @@
             <div class="field">
               <label class="label">Theme / Palette</label>
               <select class="input" id="set-sty-theme">
-                <option value="zinc-purple">Electric Purple (Default)</option>
-                <option value="midnight-amber">Midnight Amber (Classic)</option>
-                <option value="slate-blue">Slate Blue</option>
-                <option value="mocha-green">Mocha Green</option>
-                <option value="light-clean">Light Clean (Light Mode)</option>
+                <option value="zinc-purple">Indigo Dark (Default)</option>
+                <option value="midnight-amber">Midnight Amber</option>
+                <option value="slate-blue">Financial Navy</option>
+                <option value="mocha-green">Cinema Rose</option>
+                <option value="light-clean">Clean SaaS (Light)</option>
               </select>
             </div>
             <div class="field">
@@ -654,6 +664,15 @@
   </main><!-- #main -->
 </div><!-- #app -->
 
+<!-- ── Gooey Filter ──────────────── -->
+<svg width="0" height="0" style="position: absolute;">
+  <filter id="gooey">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+    <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+    <feBlend in="SourceGraphic" in2="goo" />
+  </filter>
+</svg>
+
 <!-- ── Toast container ─────────── -->
 <div id="toast-container"></div>
 
@@ -671,6 +690,8 @@
     </div>
   </div>
 </div>
+
+
 
 <!-- ── New Novel Modal ────────────── -->
 <div class="modal-overlay" id="modal-new-novel">
@@ -759,6 +780,21 @@
   </div>
 </div>
 
+<!-- ── Add Language Modal ──────────── -->
+<div class="modal-overlay" id="modal-add-language">
+  <div class="modal">
+    <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add Title Language</h3>
+    <p class="text-muted text-sm mb-12">What Title Language do you want to add?</p>
+    <div class="field">
+      <input class="input" id="add-lang-input" placeholder="e.g. Spanish, Korean, French..." autocomplete="off">
+    </div>
+    <div class="modal-actions" style="margin-top: 24px;">
+      <button class="btn btn-ghost" id="btn-lang-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-lang-confirm">Add Language</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Unsaved Changes Modal ──────────── -->
 <div class="modal-overlay" id="modal-unsaved-changes">
   <div class="modal">
@@ -772,6 +808,17 @@
   </div>
 </div>
 
-<script src="/static/app.js"></script>
+<!-- ── Image Autocomplete Popup ──────────── -->
+<div id="image-autocomplete-popup" class="image-autocomplete-popup hidden" aria-hidden="true">
+  <div class="ac-header">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    Select Image
+  </div>
+  <div id="image-autocomplete-grid" class="ac-grid">
+    <!-- Populated via JS -->
+  </div>
+</div>
+
+<script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

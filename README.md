@@ -2,7 +2,7 @@
   <h1>📚 NarrativeOS EPUB Toolkit</h1>
   <p><strong>A comprehensive, blazing-fast local toolkit for scraping, managing, and compiling Light Novels into premium EPUBs.</strong></p>
   
-  ![Version](https://img.shields.io/badge/version-1.2.061926-blue.svg?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/version-1.3.260620-blue.svg?style=for-the-badge)
   ![Python](https://img.shields.io/badge/python-3.8+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
   ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
   ![Vanilla JS](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
@@ -17,26 +17,42 @@ With a robust Python backend and a highly responsive Vanilla JavaScript frontend
 
 ---
 
-## 🚀 What's New in v1.2.061926 (Security Update)
-NarrativeOS has been massively overhauled to provide enterprise-grade security, extreme stability, and an upgraded user interface.
+## 🚀 What's New in v1.3.260620 (Architecture & UI Refinement)
+The latest update brings a monumental leap in maintainability, UI responsiveness, and stealth-scraping capabilities.
 
-### 🛡️ Uncompromised Security
+### 🧩 Frontend Modularization
+- **ES6 Module Architecture**: Completely dismantled the monolithic `app.js` into highly focused, specialized modules (`editor.js`, `scraper.js`, `metadata.js`, `library.js`, etc.). This ensures blazing-fast load times and unparalleled code maintainability.
+- **Dynamic Language Support**: The Metadata panel now supports dynamically adding and managing custom title languages. Break free from rigid "English/Romanji" defaults!
+
+### 🖼️ Smart Media Engine
+- **Auto-Download & WebP Compression**: Paste any direct image URL into your Markdown (`![img](https...)`). On compile, NarrativeOS securely downloads it, converts it to highly-optimized WebP, compresses it to save space, and automatically rewrites the path in your chapter to be local.
+- **Full-Page Image Isolation**: Standard markdown tags `![...](...)` now act as isolated, full-page illustrations automatically in the compiled EPUB.
+
+### ✨ Elevated UI & Visuals
+- **Premium Themes**: Introducing hyper-refined aesthetic palettes, including *Indigo Dark*, *Cinema Rose*, *Financial Navy*, and *Clean SaaS*.
+- **Image Autocomplete Gallery**: Type `![` to open a real-time, visual image autocomplete glass gallery directly inside the Markdown editor.
+- **Fluid Micro-Interactions**: Built-in SVG `Gooey` filters and micro-animations to make the interface feel incredibly alive.
+
+### 🛡️ Core Security & Stealth
+- **Advanced Cloudflare Bypass**: Integrated `StealthyFetcher` engine to seamlessly bypass aggressive anti-bot protections like Cloudflare on modern translation sites.
+- **Hardened Middleware**: Deployed stringent HTTP Headers including `Content-Security-Policy (CSP)`, `X-Frame-Options`, and `Referrer-Policy`. 
+- **Strict Path Resolution**: Upgraded path-traversal blocking with stricter boundary checking and recursive resolution blocks.
+
+---
+
+## 🔒 Previous Major Updates
+
+<details>
+<summary><strong>v1.2.061926 (Security Update)</strong></summary>
+
 - **Dynamic API Session Tokens**: Implemented a robust `X-API-Key` authentication system to completely lock down local backend endpoints against unauthorized access.
 - **SSRF Mitigation**: Added strict IP validation (`is_safe_url`) to block unauthorized internal network requests during automated image downloads.
 - **Enhanced Path Traversal Protection**: Hardened backend security to completely block malicious file access requests (`..`, `:` validation).
 - **CORS Lockdowns**: Restrictive Cross-Origin Resource Sharing applied to ensure only authorized local interfaces can communicate with the API.
 - **ReDoS Prevention**: Mitigated severe Regex Denial of Service vulnerabilities in the Table of Contents extraction logic.
-
-### ✨ UI & Experience Upgrades
-- **Modern Typography**: Fully migrated UI typography to the beautiful, highly readable **Inter** font family.
-- **Light Theme Support**: Added a brand new `light-clean` aesthetic theme for users who prefer brighter interfaces.
-- **Dirty State Protection**: Integrated an unsaved-changes watcher to prevent accidental data loss when editing Markdown or closing the browser tab.
-- **Icon Rail & Detail Panel**: Replaced the basic sidebar with a sleek Flexbox icon rail and a collapsible library tree.
-
-### ⚙️ Backend Enhancements
-- **Logging Overhaul**: Replaced rudimentary log writing with Python's robust `RotatingFileHandler`, eliminating file-locking race conditions and ensuring system stability.
-- **Modular Pipeline Engine**: Massive refactoring of `build_novel.py` into highly testable, modular functions for metadata parsing and manifest generation.
+- **Logging Overhaul**: Replaced rudimentary log writing with Python's robust `RotatingFileHandler`.
 - **Thread Safety**: Implemented `threading.Lock` fixes during simultaneous markdown file saving to prevent data corruption.
+</details>
 
 ---
 
@@ -59,14 +75,14 @@ NarrativeOS has been massively overhauled to provide enterprise-grade security, 
 
 ### 📦 Robust EPUB Compiler
 * **Automated Book Assembly**: With one click, NarrativeOS parses your Markdown and metadata to generate a perfectly structured EPUB.
-* **Premium Styling Elements**: Automatically supports Drop Caps, Scene Breaks (`***`), Character Thought Boxes, Game UI/Status Windows, and Full-Page Image Isolation.
-* **Image Optimization**: Automatically compresses massive PNGs and JPEGs into lightweight WebP formats to keep file size minimal.
+* **Premium Styling Elements**: Automatically supports Drop Caps, elegant Scene Breaks (`***` to `❖ ❖ ❖`), Character Thought Boxes `(thought)`, Character Stats Box `[stats]`, retro Game UI Notifications `[UI]`, and Full-Page Image Isolation.
+* **Smart Image Engine**: Automatically downloads remote images, converts massive PNGs/JPEGs into lightweight WebP formats, compresses them, and safely localizes URLs.
 
 ---
 
 ## 🛠️ Tech Stack
-* **Backend**: Python 3, FastAPI, Uvicorn, BeautifulSoup4
-* **Frontend**: HTML5, Vanilla JavaScript, CSS3
+* **Backend**: Python 3, FastAPI, Uvicorn, BeautifulSoup4, Scrapling
+* **Frontend**: HTML5, Vanilla JavaScript (ES6 Modules), CSS3
 * **Compiler Architecture**: Modular Python pipeline utilizing `zipfile`, `xml.etree.ElementTree`, and standard libraries.
 
 ---

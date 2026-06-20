@@ -1,8 +1,7 @@
 fastapi
 uvicorn
-beautifulsoup4
 markdownify
 Pillow
-requests
+scrapling[all]
 python-multipart
 markdown

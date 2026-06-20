@@ -24,25 +24,36 @@ from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:8765", "http://localhost:8765"],
-    allow_methods=["GET", "POST", "DELETE", "PUT", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "PUT"],
+    allow_headers=["X-API-Key", "Content-Type", "Accept"],
+    max_age=3600,
 )
 STATIC_DIR.mkdir(exist_ok=True)
 app.mount('/static', StaticFiles(directory=str(STATIC_DIR)), name='static')
 
-from fastapi import Request
+from fastapi import Request, Response
 from fastapi.responses import HTMLResponse
 import secrets
 
 APP_TOKEN = secrets.token_hex(16)
 print(f"\\n[Security] Generated dynamic API token for this session.\\n")
 @app.middleware("http")
-async def check_auth(request: Request, call_next):
+async def security_middleware(request: Request, call_next):
+    # API Authentication
     if request.url.path.startswith("/api/"):
         token = request.headers.get("X-API-Key") or request.query_params.get("token")
         if token != APP_TOKEN:
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    return await call_next(request)
+            
+    response: Response = await call_next(request)
+    
+    # Secure Headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self'"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 file_save_lock = threading.Lock()
 
@@ -85,18 +96,29 @@ class LogRequest(BaseModel):
 
 def safe_path(rel: str) -> Path:
     """Resolve a relative path safely inside BASE_DIR."""
-    if '..' in rel or ':' in rel:
+    if '..' in rel or (os.name == 'nt' and ':' in rel):
         raise HTTPException(status_code=403, detail='Invalid path characters')
         
-    p = (BASE_DIR / rel).resolve()
-    if not str(p).startswith(str(BASE_DIR)):
+    try:
+        p = (BASE_DIR / rel).resolve(strict=False)
+    except Exception:
+        raise HTTPException(status_code=400, detail='Path resolution failed')
+        
+    # Strict bounds checking using pathlib.Path.is_relative_to (Python 3.9+)
+    # Fallback to absolute string comparison if needed
+    p_str = str(p)
+    base_str = str(BASE_DIR)
+    if not p_str.startswith(base_str) or (len(p_str) > len(base_str) and p_str[len(base_str)] not in ['\\', '/']):
         raise HTTPException(status_code=403, detail='Path traversal denied')
+        
     try:
         rel_parts = p.relative_to(BASE_DIR).parts
         if rel_parts:
-            if rel_parts[0] in ['static', '.venv', '__pycache__', '.git', 'scratch']:
+            # Block access to system and hidden directories
+            if rel_parts[0] in ['static', '.venv', '__pycache__', '.git', 'scratch', '.agent', '.agents'] or rel_parts[0].startswith('.'):
                 raise HTTPException(status_code=403, detail='Access to system directories denied')
-            if p.suffix in ['.py', '.ini', '.log', '.bat']:
+            # Block executable and critical file access
+            if p.suffix.lower() in ['.py', '.ini', '.log', '.bat', '.sh', '.exe', '.dll', '.json']:
                 raise HTTPException(status_code=403, detail='Access to core application files denied')
     except ValueError:
         pass
@@ -113,6 +135,8 @@ _logger.setLevel(logging.INFO)
 _handler = RotatingFileHandler(BASE_DIR / 'narrative_os.log', maxBytes=2*1024*1024, backupCount=1, encoding='utf-8')
 _handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
 _logger.addHandler(_handler)
+logging.getLogger("uvicorn.access").addHandler(_handler)
+logging.getLogger("uvicorn.error").addHandler(_handler)
 
 def log_event(level: str, message: str):
     lvl = getattr(logging, level.upper(), logging.INFO)
@@ -352,14 +376,30 @@ def serve_image(path: str):
         raise HTTPException(404, 'Image not found')
     return FileResponse(str(p))
 
+@app.get('/api/epub/serve')
+def serve_epub(path: str):
+    """Serve an EPUB file by relative path."""
+    p = safe_path(path)
+    if not p.exists() or p.suffix.lower() != '.epub':
+        raise HTTPException(404, 'EPUB not found')
+    return FileResponse(str(p), media_type='application/epub+zip')
+
 def is_safe_url(url: str) -> bool:
     import socket, ipaddress
     from urllib.parse import urlparse
     try:
-        host = urlparse(url).hostname
-        if not host: return False
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        host = parsed.hostname
+        if not host: 
+            return False
+        # Block attempts to hit alternative local representations
+        if host in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
+            return False
+            
         ip_obj = ipaddress.ip_address(socket.gethostbyname(host))
-        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local)
+        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast)
     except Exception:
         return False
 
@@ -369,26 +409,41 @@ def scrape_url(req: ScrapeRequest):
     if not is_safe_url(req.url):
         raise HTTPException(status_code=403, detail="SSRF protection: URL resolves to internal IP")
         
-    import requests as req_lib
+    from scrapling.fetchers import StealthyFetcher
     from bs4 import BeautifulSoup
     import markdownify
-    
-    settings = read_settings()
-    ua = settings.get('Settings', {}).get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    headers = {'User-Agent': ua}
     try:
         if req.html_content:
             soup = BeautifulSoup(req.html_content, 'html.parser')
         else:
-            response = req_lib.get(req.url, headers=headers, timeout=30)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-        content = soup.find('div', class_='entry-content')
+            # StealthyFetcher bypasses Cloudflare automatically
+            page = StealthyFetcher.fetch(req.url, headless=True)
+            soup = BeautifulSoup(page.body, 'html.parser')
+            
+        # Try to find the main content container robustly
+        possible_classes = [
+            'entry-content', 'post-content', 'chapter-content', 'read-container', 
+            'bs-card-box', 'text-left', 'chapter-body', 'novel-content', 'content-area'
+        ]
+        content = None
+        for cls in possible_classes:
+            elements = soup.find_all(class_=cls)
+            if elements:
+                best_el = max(elements, key=lambda e: len(e.get_text(strip=True)))
+                if len(best_el.get_text(strip=True)) > 200:
+                    content = best_el
+                    break
+                    
         if not content:
             content = soup.find('article')
         if not content:
+            content = soup.find('main')
+        if not content:
             content = soup.body
-        for tag in content(['script', 'style', 'nav', 'footer', 'iframe']):
+        if not content:
+            raise ValueError("Could not find any readable content on the page.")
+            
+        for tag in content.find_all(['script', 'style', 'nav', 'footer', 'iframe']):
             tag.decompose()
         for div in content.find_all('div', class_=['sharedaddy', 'jp-relatedposts']):
             div.decompose()
@@ -529,3 +584,7 @@ def batch_scrape(req: BatchScrapeRequest):
             yield json.dumps(res) + '\n'
             
     return StreamingResponse(generator(), media_type="application/x-ndjson")
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run("server:app", host="127.0.0.1", port=8765, reload=False)

@@ -1,135 +1,134 @@
-# EPUB Formatting Style & Tricks Guide (Master Cheatsheet)
+# NarrativeOS Formatting & Tricks Guide (Master Reference)
 
-This file is a master reference guide and test template for all the symbols, text styles, and custom "tricks" supported by our universal EPUB builder system. You can keep this file in the main folder as a general reference when formatting any novel in the future.
+Welcome to the definitive guide for styling and formatting novels in the NarrativeOS EPUB Compiler. This document outlines all standard markdown formatting, custom publishing tricks, and advanced workflow enhancements supported by the newest version of the toolkit.
 
----
-
-## 1. Custom Publishing Tricks
-
-These custom tricks are automatically processed by the build system to provide a premium light novel visual experience.
-
-### A. Drop Cap (Classic Chapter Opening Letter)
-*   **How it works**: **Automatic!** You don't need to type any special symbols. The script will automatically detect the first letter at the beginning of a chapter and make it large and styled classically.
-*   **Example appearance**: The first letter spans multiple lines, creating an elegant opening.
+Keep this reference handy whenever you're authoring or formatting a novel to ensure a premium, publisher-grade final EPUB.
 
 ---
 
-### B. Scene Break
-*   **Usage**: Used for time skips or point-of-view (POV) shifts.
-*   **How to write**: Type `***` or `---` on a new empty line (make sure there is an empty line above and below it).
-*   **Markdown**:
-    ```markdown
-    This is the end of the first scene.
-    
-    ***
-    
-    This is the beginning of the next scene after a time skip.
-    ```
-*   **Result in EPUB**: Automatically converted into an elegant `❖ ❖ ❖` grey symbol centered on the page with neat vertical spacing.
+## 1. Automated EPUB Enhancements
+
+These features happen completely automatically during the EPUB compilation process. You do not need to do anything special to trigger them.
+
+### A. Classic Drop Cap (First Letter styling)
+* **How it works:** The compiler automatically detects the first letter of the first paragraph in every chapter and transforms it into an elegant, oversized drop cap. 
+* **Note:** This only applies to the very first text segment of a chapter (it will intelligently skip over starting illustrations).
+
+### B. Smart Indentation Removal
+* **How it works:** In professional publishing, the first paragraph of a chapter or immediately following a scene break/image does not have a paragraph indent. NarrativeOS automatically applies a `no-indent` class to these paragraphs for a clean, professional look.
 
 ---
 
-### C. Inner Voice / Character Thought Box (Thought Text & Box)
-*   **Usage**: Creates a special style for inner murmurs or monologues to make them more *immersive*. There are two modes: **Thought Box** and **Inline Text**.
-*   **How to write (Monologue Box)**: Type `(thought)` on a new line, without square brackets (or with square brackets).
-    ```markdown
-    (thought) Oh no... if I answer him now, he'll definitely get suspicious! I can't let this go.
-    ```
-*   **How to write (Inline Text)**: Insert `(thought) [thought text]` in the middle of a regular paragraph.
-    ```markdown
-    The character glared at me sharply. (thought) [Why is he looking at me like that?] I thought to myself.
-    ```
-*   **Result in EPUB**:
-    *   If using the first method, the text will be wrapped in an **elegant transparent grey box with a thick left border** and slightly rounded corners.
-    *   If using the second method, it will simply become dark grey italicized text (`italic`) that blends in with the rest of the sentence.
+## 2. Advanced Workflow & Image Support
+
+The newest version of NarrativeOS includes powerful automation tools for managing illustrations seamlessly.
+
+### A. Intelligent Image Autocomplete
+* **Usage:** Inserting illustrations from your local `images/` folder has never been easier.
+* **How to use:** While in the Markdown Editor, simply type `![image](` or `![](`.
+* **What happens:** An elegant, floating glass gallery will appear at the bottom of the editor showing thumbnails of all images in your current volume. Clicking a thumbnail instantly inserts the correct filename and closes the bracket for you.
+
+### B. Auto-Download & WebP Compression
+* **Usage:** You don't need to manually download images from the internet anymore.
+* **How to use:** Paste any direct image URL into your standard markdown image tag.
+  ```markdown
+  ![Illustration](https://example.com/character_art.jpg)
+  ```
+* **What happens:** When you click "Compile EPUB", the builder will:
+  1. Securely download the image from the URL.
+  2. Automatically convert it to a highly-optimized `.webp` file.
+  3. Automatically compress it to hit the target file size (e.g., under 1.5MB).
+  4. **Rewrite your original `.md` file** to safely replace the URL with the new local file: `![Illustration](character_art.webp)`.
+
+### C. Full-Page Image Isolation
+* **Usage:** Illustrations placed between paragraphs are automatically split into their own dedicated, full-page XHTML files in the EPUB.
+* **How to write:** Use the standard Markdown image tag. *(Note: The legacy `(image) [images/...]` syntax is still supported for older volumes).*
+  ```markdown
+  The monster roared, shattering the glass.
+
+  ![Monster Illustration](monster.webp)
+
+  I drew my sword and braced for impact.
+  ```
+* **Result:** The text before the image ends the previous page. The image gets a dedicated full page. The text after the image begins on a new page, automatically styled with a `no-indent` first paragraph.
 
 ---
 
-### D. UI Box / Game Status / Character Stats (Stats Box)
-*   **Usage**: Creates custom status boxes, letters, or game interface message boxes (RPG/Fantasy).
-*   **How to write**: Wrap the text with the `[stats]` tag at the beginning and `[/stats]` at the end.
-*   **Markdown**:
-    ```markdown
-    [stats]
-    **CHARACTER STATUS**
-    *   **Name**: Kanata Allure
-    *   **Level**: 99
-    *   **Job**: Genius Instructor
-    *   **Weakness**: Too much of a jerk
-    [/stats]
-    ```
-*   **Result in EPUB**: Rendered as a premium UI box with a light grey background, an elegant thick black left border, rounded corners, and a modern sans-serif font.
+## 3. Custom Publishing Tags (Light Novel Elements)
+
+We have built custom syntax specifically tailored for Light Novels, LitRPGs, and Web Novels.
+
+### A. Scene Breaks (Time/POV Skips)
+* **Usage:** Creates a visual break for time skips or changing character perspectives.
+* **How to write:** Type `***` or `---` on an empty line. Alternatively, you can use specialized symbols like `❖ ❖ ❖`.
+  ```markdown
+  And with that, the day came to an end.
+
+  ***
+
+  The morning sun pierced through the curtains...
+  ```
+* **Result:** The symbols are converted into an elegant, centered, and widely-spaced grey symbol `❖ ❖ ❖` with proper margins.
+
+### B. Character Thought Box (Monologues)
+* **Usage:** Distinguishes internal thoughts from spoken dialogue.
+* **How to write (Block Box):** Start a new line with `(thought)`.
+  ```markdown
+  (thought) If I answer him now, he'll definitely get suspicious...
+  ```
+  *Result:* The text is wrapped in a transparent grey box with a thick left border and rounded corners.
+* **How to write (Inline):** Place `(thought) [text]` inside a paragraph.
+  ```markdown
+  The character glared at me. (thought) [Why is he looking at me like that?] I wondered.
+  ```
+  *Result:* The bracketed text becomes dark grey, italicized text blending smoothly into the paragraph.
+
+### C. Character Stats Box
+* **Usage:** Perfect for LitRPG status screens, displaying character sheets, or fantasy letters.
+* **How to write:** Wrap your text with `[stats]` and `[/stats]`. Markdown inside the box is fully supported.
+  ```markdown
+  [stats]
+  **CHARACTER STATUS**
+  * **Name**: Kanata
+  * **Level**: 99
+  * **Class**: Sage
+  [/stats]
+  ```
+* **Result:** Renders as a premium UI card with a light background, elegant thick left border, rounded corners, and a modern sans-serif font.
+
+### D. Game UI Notification Window
+* **Usage:** Simulates floating system notifications or retro game popups.
+* **How to write:** Wrap the text with `[UI]` and `[/UI]`. *(Note: Ensure you use the closing slash `/UI` at the end!)*
+  ```markdown
+  [UI]
+  ▶ NEW SKILL UNLOCKED
+  Skill: [Blessing of Death]
+  Mana Cost: 0
+  [/UI]
+  ```
+* **Result:** Renders as a striking dark mode box with a glowing neon border, using the retro **VT323** pixel font, bold white text, and a cyberpunk aesthetic. Line breaks are preserved automatically.
 
 ---
 
-### E. Game Notification Box / System Window (Game UI Box)
-*   **Usage**: Creates game system notification boxes, status windows, or skill popups with a cool retro/pixel style.
-*   **How to write**: Wrap the text with the `[UI]` tag at the beginning and `[UI]` at the end.
-*   **Markdown**:
-    ```markdown
-    [UI]
-    Power unlocked.
-    Ability:
-    【Blessing of Death】
-    Total Amount: 3100
-    [UI]
-    ```
-*   **Result in EPUB**: Rendered as a dark mode box with a glowing blue border, **VT323** retro pixel font, bold white text, and a subtle glow effect. Every new line automatically drops down.
+## 4. Standard Markdown Text Formatting
+
+NarrativeOS fully supports all standard Markdown formatting for writing.
+
+* **Bold**: `**bold text**` ➔ **bold text**
+* **Italic**: `*italic text*` ➔ *italic text*
+* **Bold & Italic**: `***bold & italic***` ➔ ***bold & italic***
+* **Blockquote**: Use `>` at the start of a line.
+  ```markdown
+  > "A great teacher guides his students through the dark."
+  ```
+* **Tables**:
+  ```markdown
+  | Skill | Mana Cost | Duration |
+  | :--- | :---: | :---: |
+  | Hellflame | +150 | 5 Minutes |
+  | Marionette| +200 | Instant |
+  ```
 
 ---
 
-## 2. Standard Markdown Text Formatting
-
-Our system supports standard Markdown text formatting to adjust writing font styles:
-
-*   **Bold**:
-    *   How to write: `**bold text**` or `__bold text__`
-    *   Example: **This is bold text for strong emphasis.**
-*   **Italic**:
-    *   How to write: `*italic text*` or `_italic text_`
-    *   Example: *This is italic text for emphasis or foreign languages.*
-*   **Bold & Italic**:
-    *   How to write: `***bold italic text***`
-    *   Example: ***This is both bold and italic text.***
-*   **Blockquote**:
-    *   How to write: Use the `>` sign at the beginning of the line.
-    *   Markdown:
-        ```markdown
-        > "A great teacher doesn't just teach, but guides his students through the darkness."
-        ```
-
----
-
-## 3. Image Insertion (Illustrations)
-
-*   **Full Isolation Image Page (Inline Image Split)**:
-    *   **Usage**: Inserts an illustration in the middle of a chapter which will automatically be separated into its own full page without being mixed with text.
-    *   **How to write**: `(image) [images/filename.webp]` or `(image) [Illustrasi/filename.webp]`
-    *   **Markdown**:
-        ```markdown
-        After the fierce battle was over, the girl smiled very brightly at me.
-        
-        (image) [images/04.webp]
-        
-        The next day, we prepared to return...
-        ```
-    *   **Result in EPUB**: The image `04.webp` is guaranteed to stand alone on one full page. The text before the image is on the previous page, and the text after the image is on the next page with the first paragraph automatically formatted without an indent (`no-indent`).
-
----
-
-## 4. Information Tables
-
-Our system supports standard Markdown table creation which will automatically be transformed into a neat, modern-style table.
-
-*   **Markdown**:
-    ```markdown
-    | Parameter | Mana Effect | Duration |
-    | :--- | :---: | :---: |
-    | **Hellflame** | +150 | 5 Minutes |
-    | **Serpent Move** | +80 | Active |
-    | **Marionette** | +200 | Instant |
-    ```
-
----
-
-*Use this file as a general reference when writing new novels in the future!*
+*Tip: Use this guide as a template to test styles by clicking the "Preview" toggle in the editor!*
