@@ -4,147 +4,16 @@ import shutil
 import tempfile
 import zipfile
 import subprocess
-import argparse
-import uuid
-import datetime
-from pathlib import Path
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
-try:
-    import docx
-except ImportError:
-    docx = None
 
-def stage_1_input_analysis(input_path):
-    """
-    Analyzes the input path to determine the pipeline type and reads raw data.
-    """
-    if os.path.isdir(input_path):
-        return ('images', os.listdir(input_path))
-    ext = os.path.splitext(input_path)[1].lower()
-    if ext == '.txt':
-        with open(input_path, 'r', encoding='utf-8') as f:
-            return ('txt', f.read())
-    elif ext == '.md':
-        with open(input_path, 'r', encoding='utf-8') as f:
-            return ('md', f.read())
-    elif ext == '.docx':
-        if not docx:
-            raise ImportError('python-docx is required for DOCX parsing.')
-        return ('docx', docx.Document(input_path))
-    else:
-        raise ValueError(f'Unsupported input format: {ext}')
 
-def stage_2_structural_parsing(raw_content, input_type):
-    """
-    Parses content into structured elements.
-    """
-    structured_data = []
-    if input_type == 'txt':
-        blocks = raw_content.split('\n\n')
-        for block in blocks:
-            block = block.strip()
-            if not block:
-                continue
-            lines = block.split('\n')
-            if len(lines) == 1 and len(lines[0]) < 60:
-                structured_data.append(('heading', lines[0]))
-            else:
-                paragraph_text = ' '.join([line.strip() for line in lines])
-                structured_data.append(('paragraph', paragraph_text))
-    elif input_type == 'docx':
-        for para in raw_content.paragraphs:
-            text = para.text.strip()
-            if not text:
-                continue
-            style_name = para.style.name
-            if style_name.startswith('Heading'):
-                level = style_name.replace('Heading ', '')
-                structured_data.append((f'h{level}', text))
-            else:
-                structured_data.append(('paragraph', text))
-        print('WARNING: DOCX image extraction is stubbed. Waiting for implementation details.')
-    elif input_type == 'md':
-        print('WARNING: Markdown AST parsing and splitting is stubbed. Waiting for implementation details.')
-        structured_data.append(('raw_markdown', raw_content))
-    elif input_type == 'images':
-        images = [img for img in raw_content if img.lower().endswith(('.jpg', '.jpeg', '.png'))]
-        images.sort()
-        for img in images:
-            structured_data.append(('image_page', img))
-    return structured_data
+import html
 
-def stage_3_xhtml_generation(structured_data, output_dir, input_type):
-    """
-    Converts parsed structures into valid EPUB 3 XHTML documents.
-    """
-    xhtml_dir = os.path.join(output_dir, 'OEBPS', 'xhtml')
-    os.makedirs(xhtml_dir, exist_ok=True)
-    manifest_items = []
-    spine_items = []
-    xhtml_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n<head>\n  <title>{title}</title>\n  <link rel="stylesheet" type="text/css" href="../css/style.css"/>\n</head>\n<body>\n{body}\n</body>\n</html>'
-    fxl_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n<head>\n  <title>{title}</title>\n  <meta name="viewport" content="width={width}, height={height}"/>\n  <style type="text/css">\n    html, body {{\n      margin: 0;\n      padding: 0;\n      width: {width}px;\n      height: {height}px;\n      overflow: hidden;\n    }}\n    img {{\n      width: {width}px;\n      height: {height}px;\n      display: block;\n    }}\n  </style>\n</head>\n<body>\n  <img src="../images/{img_src}" alt="{title}"/>\n</body>\n</html>'
-    if input_type in ['txt', 'docx']:
-        chapter_idx = 1
-        current_body = []
-        current_title = f'Chapter {chapter_idx}'
+def xml_safe(text):
+    if text is None:
+        return ""
+    return html.escape(str(text), quote=True)
 
-        def write_chapter():
-            if current_body:
-                filename = f'chapter-{chapter_idx:02d}.xhtml'
-                filepath = os.path.join(xhtml_dir, filename)
-                content = xhtml_template.format(title=current_title, body='\n  '.join(current_body))
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                manifest_items.append({'id': f'ch{chapter_idx:02d}', 'href': f'xhtml/{filename}', 'media-type': 'application/xhtml+xml'})
-                spine_items.append(f'ch{chapter_idx:02d}')
-        for tag, content in structured_data:
-            if tag in ['heading', 'h1', 'h2']:
-                if current_body:
-                    write_chapter()
-                    chapter_idx += 1
-                    current_body = []
-                current_title = content
-                html_tag = 'h1' if tag == 'heading' else tag
-                current_body.append(f'<{html_tag}>{content}</{html_tag}>')
-            elif tag == 'paragraph':
-                current_body.append(f'<p>{content}</p>')
-        if current_body:
-            write_chapter()
-    elif input_type == 'images':
-        pass
-    return (manifest_items, spine_items)
 
-def stage_4_image_processing(input_folder, output_dir, max_width=1600):
-    """
-    Resizes images, converts to WebP, and copies them to the EPUB OEBPS/images/ folder.
-    (Code snippet from Part 2B)
-    """
-    if not Image:
-        raise ImportError('Pillow is required for image processing.')
-    images_dir = os.path.join(output_dir, 'OEBPS', 'images')
-    os.makedirs(images_dir, exist_ok=True)
-    manifest_images = []
-    for filename in sorted(os.listdir(input_folder)):
-        if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-            img = Image.open(os.path.join(input_folder, filename))
-            if img.width > max_width:
-                ratio = max_width / img.width
-                new_height = int(img.height * ratio)
-                img = img.resize((max_width, new_height), Image.LANCZOS)
-            webp_filename = os.path.splitext(filename)[0] + '.webp'
-            out_path = os.path.join(images_dir, webp_filename)
-            if img.mode in ('RGBA', 'LA', 'P'):
-                img_save = img.convert('RGBA')
-            else:
-                img_save = img.convert('RGB')
-            img_save.save(out_path, format='WEBP', quality=90, method=4)
-            media_type = 'image/webp'
-            img_id = f'img_{len(manifest_images) + 1:03d}'
-            manifest_images.append({'id': img_id, 'href': f'images/{webp_filename}', 'media-type': media_type, 'width': img.width, 'height': img.height, 'filename': webp_filename})
-    return manifest_images
 
 def stage_5_package_assembly(metadata, manifest_items, spine_items, output_dir, settings=None):
     """
@@ -195,7 +64,12 @@ def stage_5_package_assembly(metadata, manifest_items, spine_items, output_dir, 
     fxl_meta = ''
     if metadata.get('fixed_layout'):
         fxl_meta = '\n    <meta property="rendition:layout">pre-paginated</meta>\n    <meta property="rendition:orientation">auto</meta>\n    <meta property="rendition:spread">auto</meta>'
-    opf_content = f"""<?xml version="1.0" encoding="UTF-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">\n  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n    <dc:title>{metadata.get('title', 'Untitled')}</dc:title>\n    <dc:creator>{metadata.get('author', 'Unknown Author')}</dc:creator>\n    <dc:language>{metadata.get('language', 'en')}</dc:language>\n    <dc:identifier id="bookid">urn:uuid:{uuid.uuid4()}</dc:identifier>\n    <meta property="dcterms:modified">{datetime.datetime.now(datetime.timezone.utc).isoformat()[:19]}Z</meta>{fxl_meta}\n  </metadata>\n  <manifest>\n{manifest_str.rstrip()}\n  </manifest>\n  <spine>\n{spine_str.rstrip()}\n  </spine>\n</package>"""
+    
+    safe_title = xml_safe(metadata.get('title', 'Untitled'))
+    safe_author = xml_safe(metadata.get('author', 'Unknown Author'))
+    safe_lang = xml_safe(metadata.get('language', 'en'))
+
+    opf_content = f"""<?xml version="1.0" encoding="UTF-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">\n  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n    <dc:title>{safe_title}</dc:title>\n    <dc:creator>{safe_author}</dc:creator>\n    <dc:language>{safe_lang}</dc:language>\n    <dc:identifier id="bookid">urn:uuid:{uuid.uuid4()}</dc:identifier>\n    <meta property="dcterms:modified">{datetime.datetime.now(datetime.timezone.utc).isoformat()[:19]}Z</meta>{fxl_meta}\n  </metadata>\n  <manifest>\n{manifest_str.rstrip()}\n  </manifest>\n  <spine>\n{spine_str.rstrip()}\n  </spine>\n</package>"""
     with open(os.path.join(oebps_dir, 'content.opf'), 'w', encoding='utf-8') as f:
         f.write(opf_content)
     nav_li_str = ''
@@ -206,7 +80,7 @@ def stage_5_package_assembly(metadata, manifest_items, spine_items, output_dir, 
         title = item.get('title') if isinstance(item, dict) else f'Chapter {i + 1}'
         href = next((x['href'] for x in manifest_items if x['id'] == itemref), None)
         if href:
-            nav_li_str += f'      <li><a href="{href}">{title}</a></li>\n'
+            nav_li_str += f'      <li><a href="{href}">{xml_safe(title)}</a></li>\n'
     NON_READING_IDS = {'cover_page', 'nav', 'about_page', 'illustrations_page'}
     start_reading_href = ''
     for item in spine_items:
@@ -253,62 +127,4 @@ def stage_7_validation(epub_path):
             print(result.stderr)
     except FileNotFoundError:
         print("Validation skipped: 'java' not found or 'epubcheck.jar' is missing.")
-
-def universal_build_algorithm(args):
-    """
-    Scaffolds the project and coordinates all pipeline stages.
-    """
-    input_path = args.input
-    output_path = args.output
-    if not output_path:
-        output_path = 'output.epub'
-    print(f'Starting EPUB build for: {input_path}')
-    temp_dir = tempfile.mkdtemp(prefix='epub_build_')
-    try:
-        input_type, raw_content = stage_1_input_analysis(input_path)
-        print(f'Detected input type: {input_type}')
-        structured_data = stage_2_structural_parsing(raw_content, input_type)
-        manifest_items = []
-        spine_items = []
-        if input_type == 'images':
-            print('Processing images...')
-            img_manifest = stage_4_image_processing(input_path, temp_dir)
-            manifest_items.extend(img_manifest)
-            xhtml_dir = os.path.join(temp_dir, 'OEBPS', 'xhtml')
-            os.makedirs(xhtml_dir, exist_ok=True)
-            fxl_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n<head>\n  <title>Page {idx}</title>\n  <meta name="viewport" content="width={width}, height={height}"/>\n  <style type="text/css">\n    html, body {{\n      margin: 0;\n      padding: 0;\n      width: {width}px;\n      height: {height}px;\n      overflow: hidden;\n    }}\n    img {{\n      width: {width}px;\n      height: {height}px;\n      display: block;\n    }}\n  </style>\n</head>\n<body>\n  <img src="../images/{filename}" alt="Page {idx}"/>\n</body>\n</html>'
-            for i, img_data in enumerate(img_manifest, 1):
-                filename = f'page-{i:03d}.xhtml'
-                filepath = os.path.join(xhtml_dir, filename)
-                content = fxl_template.format(idx=i, width=img_data['width'], height=img_data['height'], filename=img_data['filename'])
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                ch_id = f'page{i:03d}'
-                manifest_items.append({'id': ch_id, 'href': f'xhtml/{filename}', 'media-type': 'application/xhtml+xml', 'properties': 'rendition:layout-pre-paginated'})
-                spine_items.append(ch_id)
-        else:
-            print('Generating XHTML...')
-            man, spi = stage_3_xhtml_generation(structured_data, temp_dir, input_type)
-            manifest_items.extend(man)
-            spine_items.extend(spi)
-        print('Assembling EPUB package...')
-        metadata = {'title': args.title, 'author': args.author, 'language': args.language, 'fixed_layout': args.fixed_layout or input_type == 'images'}
-        stage_5_package_assembly(metadata, manifest_items, spine_items, temp_dir)
-        print(f'Packaging to {output_path}...')
-        stage_6_zip_packaging(temp_dir, output_path)
-        if args.validate:
-            stage_7_validation(output_path)
-        print('Build complete!')
-    finally:
-        shutil.rmtree(temp_dir)
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Universal EPUB Builder based on Ultimate Guide.')
-    parser.add_argument('input', help='Input file (.txt, .md, .docx) or folder of images.')
-    parser.add_argument('--output', '-o', help='Output .epub file path.')
-    parser.add_argument('--title', default='Untitled Ebook', help='Ebook title.')
-    parser.add_argument('--author', default='Unknown Author', help='Ebook author.')
-    parser.add_argument('--language', default='en', help='Language code (e.g. en).')
-    parser.add_argument('--fixed-layout', action='store_true', help='Force fixed-layout EPUB.')
-    parser.add_argument('--validate', action='store_true', help='Run EPUBCheck after building.')
-    args = parser.parse_args()
-    universal_build_algorithm(args)
+

@@ -27,6 +27,11 @@ def load_settings():
     return {'image_format': config.get('image', 'format', fallback='webp').lower(), 'image_quality': config.getint('image', 'quality', fallback=90), 'max_size_mb': config.getfloat('image', 'max_size_mb', fallback=1.5), 'max_dimension': config.getint('image', 'max_dimension', fallback=2000), 'webp_method': config.getint('image', 'webp_method', fallback=4), 'language': config.get('output', 'language', fallback='id'), 'output_location': config.get('output', 'output_location', fallback='parent'), 'output_name_format': config.get('output', 'output_name_format', fallback='{folder_name}'), 'drop_cap': config.getboolean('styling', 'drop_cap', fallback=False), 'scene_break_symbol': config.get('styling', 'scene_break_symbol', fallback='❖ ❖ ❖'), 'font_size': config.getfloat('styling', 'font_size', fallback=1.0), 'line_height': config.getfloat('styling', 'line_height', fallback=1.8), 'text_indent': config.getfloat('styling', 'text_indent', fallback=1.5), 'auto_convert_images': config.getboolean('build', 'auto_convert_images', fallback=True), 'auto_compress': config.getboolean('build', 'auto_compress', fallback=True), 'download_online_images': config.getboolean('build', 'download_online_images', fallback=True), 'download_retries': config.getint('build', 'download_retries', fallback=3), 'download_timeout': config.getint('build', 'download_timeout', fallback=30)}
 SETTINGS = load_settings()
 
+def xml_safe(text):
+    if text is None:
+        return ""
+    return html.escape(str(text), quote=True)
+
 def compress_image(filepath, max_mb=None):
     """Compress image and convert to the target format from settings.
     Returns the final filepath — will differ from input if converted."""
@@ -98,7 +103,7 @@ def compress_image(filepath, max_mb=None):
             print(f'  → Converted {os.path.basename(filepath)} → {target_format.upper()} (quality=20, forced): {os.path.basename(target_path)}')
             return target_path
     except Exception as e:
-        print(f'Error compressing {filepath}: {e}')
+        log_event("error", f'Error compressing {filepath}: {e}')
         if os.path.exists(filepath + f'.tmp.{target_ext}'):
             os.remove(filepath + f'.tmp.{target_ext}')
         return filepath
@@ -117,33 +122,17 @@ def update_md_image_references(base_dir, old_name, new_name):
                 if new_text != text:
                     with open(fpath, 'w', encoding='utf-8') as f:
                         f.write(new_text)
-                    print(f'  → Updated reference in {fname}: {old_name} → {new_name}')
+                    log_event("info", f'  → Updated reference in {fname}: {old_name} → {new_name}')
             except Exception as e:
-                print(f'  Warning: Could not update references in {fname}: {e}')
+                log_event("warn", f'Could not update references in {fname}: {e}')
 
-def is_safe_url(url: str) -> bool:
-    import socket, ipaddress
-    from urllib.parse import urlparse
-    try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ('http', 'https'):
-            return False
-        host = parsed.hostname
-        if not host: 
-            return False
-        # Block attempts to hit alternative local representations
-        if host in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
-            return False
-            
-        ip_obj = ipaddress.ip_address(socket.gethostbyname(host))
-        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast)
-    except Exception:
-        return False
+from utils import get_safe_ip_and_host, pin_dns, log_event
 
 def download_url(url, dest_path, retries=None, timeout=None):
     """Download a URL to dest_path with retry logic. Returns True on success."""
-    if not is_safe_url(url):
-        print(f"Skipping unsafe URL (SSRF blocked): {url}")
+    ip_str, host = get_safe_ip_and_host(url)
+    if not ip_str:
+        log_event("warn", f"Skipping unsafe URL (SSRF blocked): {url}")
         return False
         
     if retries is None:
@@ -157,16 +146,17 @@ def download_url(url, dest_path, retries=None, timeout=None):
         headers['Referer'] = 'https://kdtnovels.net/'
     for attempt in range(1, retries + 1):
         try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=timeout) as response, open(dest_path, 'wb') as out_file:
-                shutil.copyfileobj(response, out_file)
+            with pin_dns(host, ip_str):
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=timeout) as response, open(dest_path, 'wb') as out_file:
+                    shutil.copyfileobj(response, out_file)
             return True
         except Exception as e:
             if attempt < retries:
-                print(f'  Attempt {attempt} failed: {e}. Retrying in 2s...')
+                log_event("warn", f'Attempt {attempt} failed downloading {url}: {e}. Retrying in 2s...')
                 time.sleep(2)
             else:
-                print(f'  Download failed after {retries} attempts: {e}')
+                log_event("error", f'Download failed after {retries} attempts: {url} -> {e}')
     return False
 
 def auto_compress_folder(base_dir):
@@ -491,7 +481,7 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
                     illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>')
         if illus_html_list:
             illus_body = '\n'.join(illus_html_list)
-            xhtml_content = xhtml_template.format(title=ch_title, body=illus_body)
+            xhtml_content = xhtml_template.format(title=xml_safe(ch_title), body=illus_body)
             out_filename = f'chapter-{chapter_idx:02d}-01.xhtml'
             out_path = os.path.join(xhtml_dir, out_filename)
             with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -513,7 +503,7 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
                     segment_html = add_dropcap(segment_html)
             else:
                 segment_html = remove_first_p_indent(segment_html)
-            xhtml_content = xhtml_template.format(title=ch_title, body=segment_html)
+            xhtml_content = xhtml_template.format(title=xml_safe(ch_title), body=segment_html)
             out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
             out_path = os.path.join(xhtml_dir, out_filename)
             with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -533,7 +523,7 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
             if actual_img:
                 is_first_part = part_idx == 1
                 illus_html = f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>\n'
-                xhtml_content = xhtml_template.format(title=ch_title if is_first_part else 'Ilustrasi', body=illus_html)
+                xhtml_content = xhtml_template.format(title=xml_safe(ch_title) if is_first_part else 'Ilustrasi', body=illus_html)
                 out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
                 out_path = os.path.join(xhtml_dir, out_filename)
                 with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -552,13 +542,13 @@ def parse_toc(content: str) -> list[str]:
     """Parse the Table of Contents section from the main.md file."""
     toc_start_idx = content.lower().find('table of content')
     if toc_start_idx == -1:
-        print('Error: Table of Content block not found in main.md')
+        log_event("error", 'Table of Content block not found in main.md')
         return []
     toc_part = content[toc_start_idx:]
     start_bracket = toc_part.find('[')
     end_bracket = toc_part.rfind(']')
     if start_bracket == -1 or end_bracket == -1:
-        print('Error: Table of Content block not found or malformed')
+        log_event("error", 'Table of Content block not found or malformed')
         return []
     toc_block = toc_part[start_bracket+1:end_bracket]
     raw_toc_items = []
@@ -613,7 +603,7 @@ def process_toc_items(toc_items: list[str], base_dir: str, xhtml_dir: str, image
             chapter_idx = process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern)
             continue
         else:
-            print(f"Warning: Unrecognized TOC item: '{item}'")
+            log_event("warn", f"Unrecognized TOC item: '{item}'")
     return chapter_idx
 
 def build_novel(args=None):
@@ -622,15 +612,15 @@ def build_novel(args=None):
     parsed_args = parser.parse_args(args)
     base_dir = parsed_args.folder
     if not base_dir:
-        print('Error: Please provide a path to the novel folder.')
+        log_event("error", 'Please provide a path to the novel folder.')
         return
     if not os.path.exists(base_dir):
-        print(f'Error: Folder not found: {base_dir}')
+        log_event("error", f'Folder not found: {base_dir}')
         return
     auto_compress_folder(base_dir)
     main_md_path = os.path.join(base_dir, 'main.md')
     if not os.path.exists(main_md_path):
-        print(f'Error: main.md not found in {base_dir}')
+        log_event("error", f'main.md not found in {base_dir}')
         return
     with open(main_md_path, 'r', encoding='utf-8') as f:
         content = f.read()

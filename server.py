@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Path as Fast
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from utils import pin_dns, get_safe_ip_and_host, BLANK_MAIN_MD_TEMPLATE, log_event
 BASE_DIR = Path(__file__).parent.resolve()
 STATIC_DIR = BASE_DIR / 'static'
 VENV_PYTHON = BASE_DIR / '.venv' / ('Scripts' if os.name == 'nt' else 'bin') / ('python.exe' if os.name == 'nt' else 'python')
@@ -36,7 +37,7 @@ from fastapi.responses import HTMLResponse
 import secrets
 
 APP_TOKEN = secrets.token_hex(16)
-print(f"\\n[Security] Generated dynamic API token for this session.\\n")
+log_event("info", f"[Security] Generated dynamic API token for this session.")
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
     # API Authentication
@@ -117,8 +118,8 @@ def safe_path(rel: str) -> Path:
             # Block access to system and hidden directories
             if rel_parts[0] in ['static', '.venv', '__pycache__', '.git', 'scratch', '.agent', '.agents'] or rel_parts[0].startswith('.'):
                 raise HTTPException(status_code=403, detail='Access to system directories denied')
-            # Block executable and critical file access
-            if p.suffix.lower() in ['.py', '.ini', '.log', '.bat', '.sh', '.exe', '.dll', '.json']:
+            # Block executable and critical file access at the root level
+            if len(rel_parts) == 1 and p.suffix.lower() in ['.py', '.ini', '.log', '.bat', '.sh', '.exe', '.dll', '.json']:
                 raise HTTPException(status_code=403, detail='Access to core application files denied')
     except ValueError:
         pass
@@ -127,20 +128,7 @@ def safe_path(rel: str) -> Path:
 def _sort_key_volumes(name: str) -> int:
     nums = re.findall(r'\d+', name)
     return int(nums[-1]) if nums else 0
-import logging
-from logging.handlers import RotatingFileHandler
 
-_logger = logging.getLogger('narrative_os')
-_logger.setLevel(logging.INFO)
-_handler = RotatingFileHandler(BASE_DIR / 'narrative_os.log', maxBytes=2*1024*1024, backupCount=1, encoding='utf-8')
-_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-_logger.addHandler(_handler)
-logging.getLogger("uvicorn.access").addHandler(_handler)
-logging.getLogger("uvicorn.error").addHandler(_handler)
-
-def log_event(level: str, message: str):
-    lvl = getattr(logging, level.upper(), logging.INFO)
-    _logger.log(lvl, message)
 
 def read_settings() -> dict:
     cfg = configparser.ConfigParser()
@@ -251,8 +239,7 @@ def create_volume(req: CreateVolumeRequest):
             if blank.exists():
                 shutil.copy(str(blank), str(target_main))
             else:
-                content = f'# Main\n\nTitle Japan: []\nTitle Indonesia: []\nTitle Inggris : []\nTitle Romanji: []\nVolume: []\nAuthor: []\nArtist: []\nGenres: []\nTranslator: []\nEPUB Compiler : [TakoYune]\nPrimary Title: [id]\n\nCover : []\n\nTable of Content[\n]\n'
-                target_main.write_text(content, encoding='utf-8')
+                target_main.write_text(BLANK_MAIN_MD_TEMPLATE, encoding='utf-8')
     return {'ok': True}
 
 @app.delete('/api/delete')
@@ -272,7 +259,7 @@ def delete_item(req: DeleteRequest):
         shutil.rmtree(str(p))
     else:
         p.unlink()
-    print(f"SECURITY AUDIT: File/Directory deleted -> {p}")
+    log_event("info", f"SECURITY AUDIT: File/Directory deleted -> {p}")
     return {'ok': True}
 
 @app.post('/api/rename')
@@ -293,7 +280,7 @@ def rename_item(req: RenameRequest):
     if not src.exists():
         raise HTTPException(404, 'Source not found')
     src.rename(dst)
-    print(f"SECURITY AUDIT: File/Directory renamed -> {src} to {dst}")
+    log_event("info", f"SECURITY AUDIT: File/Directory renamed -> {src} to {dst}")
     return {'ok': True}
 
 @app.get('/api/md')
@@ -365,7 +352,7 @@ async def upload_image(file: UploadFile=File(...), novel: str=Form(...), volume:
     dest = img_dir / safe_name
     with open(str(dest), 'wb') as f:
         shutil.copyfileobj(file.file, f)
-    print(f"SECURITY AUDIT: Image uploaded -> {dest}")
+    log_event("info", f"SECURITY AUDIT: Image uploaded -> {dest}")
     return {'ok': True, 'filename': safe_name, 'path': f'{novel}/{volume}/images/{safe_name}'}
 
 @app.get('/api/images/serve')
@@ -384,29 +371,11 @@ def serve_epub(path: str):
         raise HTTPException(404, 'EPUB not found')
     return FileResponse(str(p), media_type='application/epub+zip')
 
-def is_safe_url(url: str) -> bool:
-    import socket, ipaddress
-    from urllib.parse import urlparse
-    try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ('http', 'https'):
-            return False
-        host = parsed.hostname
-        if not host: 
-            return False
-        # Block attempts to hit alternative local representations
-        if host in ('localhost', '127.0.0.1', '::1', '0.0.0.0'):
-            return False
-            
-        ip_obj = ipaddress.ip_address(socket.gethostbyname(host))
-        return not (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast)
-    except Exception:
-        return False
-
 @app.post('/api/scrape')
 def scrape_url(req: ScrapeRequest):
     """Scrape a web URL and save as .md in the target volume folder."""
-    if not is_safe_url(req.url):
+    ip_str, host = get_safe_ip_and_host(req.url)
+    if not ip_str:
         raise HTTPException(status_code=403, detail="SSRF protection: URL resolves to internal IP")
         
     from scrapling.fetchers import StealthyFetcher
@@ -416,8 +385,9 @@ def scrape_url(req: ScrapeRequest):
         if req.html_content:
             soup = BeautifulSoup(req.html_content, 'html.parser')
         else:
-            # StealthyFetcher bypasses Cloudflare automatically
-            page = StealthyFetcher.fetch(req.url, headless=True)
+            with pin_dns(host, ip_str):
+                # StealthyFetcher bypasses Cloudflare automatically
+                page = StealthyFetcher.fetch(req.url, headless=True)
             soup = BeautifulSoup(page.body, 'html.parser')
             
         # Try to find the main content container robustly
@@ -502,7 +472,7 @@ def build_epub(req: BuildRequest):
     except subprocess.TimeoutExpired:
         raise HTTPException(504, 'Build timed out after 300 seconds')
     except Exception as e:
-        print(f"Build error: {e}")
+        log_event("error", f"Build error: {e}")
         raise HTTPException(500, 'An internal error occurred while building.')
     finally:
         build_lock.release()
@@ -554,8 +524,7 @@ def get_mainmd(novel: str, volume: str):
     blank = BASE_DIR / 'main.md'
     if blank.exists():
         return {'content': blank.read_text(encoding='utf-8')}
-    content = f'# Main\n\nTitle Japan: []\nTitle Indonesia: []\nTitle Inggris : []\nTitle Romanji: []\nVolume: []\nAuthor: []\nArtist: []\nGenres: []\nTranslator: []\nEPUB Compiler : [TakoYune]\nPrimary Title: [id]\n\nCover : []\n\nTable of Content[\n]\n'
-    return {'content': content}
+    return {'content': BLANK_MAIN_MD_TEMPLATE}
 
 @app.post('/api/mainmd')
 def save_mainmd(req: SaveMdRequest):
