@@ -28,6 +28,9 @@ narrative_os.log
 !/.git/
 !/lib_pdf2md/
 !/lib_pdf2md/**
+!/LICENSE
+!/.github/
+!/.github/**
 
 # Ignore test files
 test*.py
