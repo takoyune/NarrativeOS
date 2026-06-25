@@ -26,6 +26,8 @@ narrative_os.log
 !/static/
 !/static/**
 !/.git/
+!/lib_pdf2md/
+!/lib_pdf2md/**
 
 # Ignore test files
 test*.py

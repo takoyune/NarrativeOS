@@ -105,7 +105,7 @@ document.getElementById('btn-scrape-batch').addEventListener('click', async () =
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep the last incomplete line
+      buffer = lines.pop(); 
       
       for (const line of lines) {
         if (!line.trim()) continue;

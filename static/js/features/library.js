@@ -1,7 +1,7 @@
 import { editorVolumeChange, editorFileChange } from './editor.js';
 import { state } from '../core/state.js';
 import { api, GET, POST, DEL } from '../core/api.js';
-import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect } from '../core/utils.js';
+import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect, setSelectValue } from '../core/utils.js';
 
 
 export async function loadLibrary() {
@@ -142,16 +142,15 @@ export async function openInEditor(novel, volume, filename) {
   }
   state.selectedNovel = novel;
   state.selectedVolume = volume;
-  showPanel('editor');
-  syncSelectsTo(novel, volume);
-  await editorVolumeChange();
+  window.showPanel('editor');
+  await window.syncSelectsTo(novel, volume);
   setSelectValue('editor-file-select', filename);
   await editorFileChange();
 }
 export function populateAllSelects() {
   const ids = ['scraper-novel', 'editor-novel-select', 'img-novel-select',
                'meta-novel-select', 'build-novel-select',
-               'new-volume-novel'];
+               'new-volume-novel', 'pdf2md-novel'];
   ids.forEach(id => populateSelect(id, state.novels, 'Select Novel'));
   if (state.selectedNovel) {
     ids.forEach(id => {

@@ -9,15 +9,15 @@ import { initMetaPanel, parseMetaToForm, renderTocBuilder, addTocItemDOM, buildM
 import { initBuilderPanel, setPhase, resetPhases, logBuild, buildNovelChange, startBuild } from './features/builder.js';
 import { initImagesPanel, imgNovelChange, imgVolumeChange, loadImages, handleImageFiles } from './features/images.js';
 import { initSettingsPanel, fetchLogs, applySettingsToForm, setVal, saveSettings } from './features/settings.js';
+import { initPdf2mdPanel, pdf2mdNovelChange } from './features/pdf2md.js';
 
-// Global exports for HTML onclick handlers
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.openLightbox = openLightbox;
 window.copyToClipboard = copyToClipboard;
 window.openInEditor = openInEditor;
-// Removed missing bindings
-// Attach handlers for inline HTML onchange events
+
+
 window.scraperNovelChange = scraperNovelChange;
 window.editorNovelChange = editorNovelChange;
 window.editorVolumeChange = editorVolumeChange;
@@ -27,8 +27,9 @@ window.imgVolumeChange = imgVolumeChange;
 window.metaNovelChange = metaNovelChange;
 window.metaVolumeChange = metaVolumeChange;
 window.buildNovelChange = buildNovelChange;
+window.pdf2mdNovelChange = pdf2mdNovelChange;
 
-// --- showPanel ---
+
 window.showPanel = function(name) {
   document.querySelectorAll('#main .panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.rail-btn').forEach(n => n.classList.remove('active'));
@@ -41,9 +42,10 @@ window.showPanel = function(name) {
   if (name === 'metadata') initMetaPanel();
   if (name === 'builder')  initBuilderPanel();
   if (name === 'settings') initSettingsPanel();
+  if (name === 'pdf2md')   initPdf2mdPanel();
 };
 
-// --- syncSelectsTo ---
+
 window.syncSelectsTo = function(novel, volume) {
   const setSelectValue = (id, val) => {
     const el = document.getElementById(id);
@@ -53,25 +55,29 @@ window.syncSelectsTo = function(novel, volume) {
     if (input) input.value = val;
   };
   const novelSelects = ['scraper-novel', 'editor-novel-select', 'img-novel-select',
-                        'meta-novel-select', 'build-novel-select'];
+                        'meta-novel-select', 'build-novel-select', 'pdf2md-novel'];
   novelSelects.forEach(id => {
     const el = document.getElementById(id);
     if (el && el.value !== novel) setSelectValue(id, novel);
   });
-  scraperNovelChange().then(() => setSelectValue('scraper-volume', volume));
-  editorNovelChange().then(() => {
+  const promises = [];
+  promises.push(scraperNovelChange().then(() => setSelectValue('scraper-volume', volume)));
+  promises.push(editorNovelChange().then(() => {
     setSelectValue('editor-volume-select', volume);
-    editorVolumeChange();
-  });
-  imgNovelChange().then(() => {
+    return editorVolumeChange();
+  }));
+  promises.push(imgNovelChange().then(() => {
     setSelectValue('img-volume-select', volume);
-    imgVolumeChange();
-  });
-  metaNovelChange().then(() => {
+    return imgVolumeChange();
+  }));
+  promises.push(metaNovelChange().then(() => {
     setSelectValue('meta-volume-select', volume);
-    metaVolumeChange();
-  });
-  buildNovelChange().then(() => setSelectValue('build-volume-select', volume));
+    return metaVolumeChange();
+  }));
+  promises.push(buildNovelChange().then(() => setSelectValue('build-volume-select', volume)));
+  promises.push(pdf2mdNovelChange().then(() => setSelectValue('pdf2md-volume', volume)));
+  
+  return Promise.all(promises);
 };
 
 document.querySelectorAll('.rail-btn').forEach(item => {
@@ -198,7 +204,7 @@ boot();
 
 
 
-// ── Sidebar Collapse & Search ──
+
 const detailPanel = document.getElementById('detailPanel');
 const collapseBtn = document.getElementById('collapseBtn');
 let panelCollapsed = false;

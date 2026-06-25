@@ -237,7 +237,7 @@ a:hover { text-decoration: underline; }
 }
 #topbar .breadcrumb span { color: var(--text-accent); }
 .top-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
-/* ── New Sidebar Styles (from template) ── */
+
 :root {
   --spring: cubic-bezier(0.25, 1.1, 0.4, 1);
   --rail-w: 56px;
@@ -250,7 +250,7 @@ a:hover { text-decoration: underline; }
   height: 100%;
   overflow: hidden;
 }
-/* ── Icon Rail ── */
+
 .rail {
   width: var(--rail-w);
   min-width: var(--rail-w);
@@ -279,7 +279,7 @@ a:hover { text-decoration: underline; }
 .rail-spacer { flex: 1; }
 .rail-bottom { display: flex; flex-direction: column; gap: 4px; align-items: center; }
 
-/* ── Detail Panel ── */
+
 .detail-panel {
   width: var(--panel-w); min-width: var(--panel-w); 
   background: var(--glass-bg);
@@ -309,7 +309,7 @@ a:hover { text-decoration: underline; }
 .search-wrap input::placeholder { color: var(--text-muted); }
 .search-wrap input:focus { border-color: var(--border-focus); }
 
-/* ── Panel Body ── */
+
 .detail-panel .panel-body {
   flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px;
 }
@@ -1231,22 +1231,22 @@ select.input {
   color: #1a1a1a !important;
 }
 
-/* ── Image Autocomplete Popup (UI-UX Pro Max: Glassmorphism & Cyberpunk Elegance) ── */
+
 .image-autocomplete-popup {
   position: fixed;
-  bottom: 80px; /* Floating slightly above bottom */
+  bottom: 80px; 
   left: 50%;
   transform: translateX(-50%) translateY(10px);
   width: 90%;
   max-width: 600px;
-  background: rgba(15, 23, 42, 0.75); /* Deep slate with high transparency */
+  background: rgba(15, 23, 42, 0.75); 
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-lg);
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8),
-              0 0 20px rgba(219, 39, 119, 0.15); /* Subtle neon pink glow */
+              0 0 20px rgba(219, 39, 119, 0.15); 
   z-index: 9999;
   opacity: 0;
   pointer-events: none;
@@ -1268,7 +1268,7 @@ select.input {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #f472b6; /* Secondary pink */
+  color: #f472b6; 
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
@@ -1284,7 +1284,7 @@ select.input {
   overflow-y: auto;
 }
 
-/* Custom scrollbar for popup */
+
 .image-autocomplete-popup .ac-grid::-webkit-scrollbar {
   width: 6px;
 }
@@ -1296,7 +1296,7 @@ select.input {
   border-radius: 4px;
 }
 .image-autocomplete-popup .ac-grid::-webkit-scrollbar-thumb:hover {
-  background: rgba(219, 39, 119, 0.5); /* Primary pink on hover */
+  background: rgba(219, 39, 119, 0.5); 
 }
 
 .ac-item {
@@ -1310,7 +1310,7 @@ select.input {
 }
 
 .ac-item:hover {
-  border-color: #db2777; /* Primary pink */
+  border-color: #db2777; 
   transform: translateY(-2px);
   box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 0 12px rgba(219, 39, 119, 0.3);
 }

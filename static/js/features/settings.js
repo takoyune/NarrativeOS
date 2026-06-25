@@ -58,7 +58,7 @@ export function setVal(id, val) {
 document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
 document.getElementById('set-sty-theme').addEventListener('change', (e) => {
   document.documentElement.setAttribute('data-theme', e.target.value);
-  saveSettings(); // Auto-save when theme changes
+  saveSettings(); 
 });
 export async function saveSettings() {
   const newSettings = {

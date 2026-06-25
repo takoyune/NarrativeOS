@@ -6,14 +6,14 @@
   <title>NarrativeOS — EPUB Toolkit</title>
   <meta name="description" content="Local EPUB authoring toolkit: scrape web chapters, edit Markdown, manage images, and compile EPUB novels.">
   <link rel="stylesheet" href="/static/style.css">
-  <!-- Marked.js for Markdown preview -->
+  
   <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 </head>
 <body>
 
 <div id="app" class="sidebar-shell">
 
-  <!-- ── ICON RAIL ───────────────────────────────── -->
+  
   <nav class="rail" aria-label="Main navigation">
     <div class="rail-logo" aria-hidden="true">
       <button class="rail-btn" id="collapseBtn" aria-label="Toggle Library" title="Toggle Library" style="margin: 0;">
@@ -31,6 +31,9 @@
       <button class="rail-btn" data-panel="scraper" data-tip="Web → MD" aria-label="Scraper">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
       </button>
+      <button class="rail-btn" data-panel="pdf2md" data-tip="PDF to MD" aria-label="PDF to MD">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      </button>
       <button class="rail-btn" data-panel="editor" data-tip="MD Editor" aria-label="Editor">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
       </button>
@@ -43,6 +46,7 @@
       <button class="rail-btn" data-panel="builder" data-tip="EPUB Builder" aria-label="Builder">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
       </button>
+
     </div>
 
     <div class="rail-spacer"></div>
@@ -61,7 +65,7 @@
     </div>
   </nav>
 
-  <!-- ── DETAIL PANEL (Library) ───────────────────────────────── -->
+  
   <aside class="detail-panel" id="detailPanel" aria-label="Section navigation">
     <div class="panel-header">
       <div class="panel-title-row">
@@ -80,10 +84,10 @@
     </div>
   </aside>
 
-  <!-- ── MAIN AREA ──────────────────────────────── -->
+  
   <main id="main">
 
-    <!-- ── TOP BAR ─────────────────────────────── -->
+    
     <header id="topbar">
       <a href="#" class="logo">
         <svg class="logo-icon" width="30" height="26" viewBox="0 0 30 26" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -111,22 +115,20 @@
         <span>Ready</span> — Select a novel to get started
       </div>
       <div class="top-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-new-novel">+ Novel</button>
+        <button class="btn btn-ghost btn-sm" id="btn-new-volume">+ Volume</button>
         <button class="btn btn-ghost btn-sm" id="btn-refresh-lib" title="Refresh library">⟳ Refresh</button>
         <button class="btn btn-primary btn-sm" id="btn-quick-build" title="Build selected volume"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Build EPUB</button>
       </div>
     </header>
 
-    <!-- ══ OVERVIEW PANEL ════════════════════ -->
+    
     <div class="panel active" id="panel-overview">
       <div class="panel-header">
-        <span class="panel-title">🏠 Overview</span>
-        <div class="panel-actions">
-          <button class="btn btn-ghost btn-sm" id="btn-new-novel">+ Novel</button>
-          <button class="btn btn-ghost btn-sm" id="btn-new-volume">+ Volume</button>
-        </div>
+        <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Overview</span>
       </div>
       <div class="panel-body">
-        <!-- Stats -->
+        
         <div class="stats-grid" id="stats-grid">
           <div class="stat-card">
             <div class="stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
@@ -150,7 +152,7 @@
           </div>
         </div>
 
-        <!-- Selected volume info -->
+        
         <div id="volume-info" class="hidden">
           <div class="flex items-center gap-8 mb-12">
             <h3 id="vi-title" style="font-size:16px;font-weight:700;"></h3>
@@ -177,24 +179,30 @@
       </div>
     </div>
 
-    <!-- ══ SCRAPER PANEL ════════════════════════ -->
+    
     <div class="panel" id="panel-scraper">
       <div class="panel-header">
         <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Web → Markdown Scraper</span>
       </div>
       <div class="panel-body">
         <div class="scraper-layout">
-          <!-- Left: input -->
+          
           <div class="flex-col gap-12">
             <div class="card">
               <div class="settings-section-title">Target</div>
               <div class="field">
                 <label class="label">Novel</label>
-                <select class="input" id="scraper-novel" onchange="scraperNovelChange()"></select>
+                <div style="display:flex; gap:8px;">
+                  <select class="input" id="scraper-novel" onchange="scraperNovelChange()" style="flex:1"></select>
+                  <button class="btn btn-ghost btn-sm" onclick="document.getElementById('btn-new-novel').click()" style="padding: 0 16px;">+ Novel</button>
+                </div>
               </div>
               <div class="field">
                 <label class="label">Volume Folder</label>
-                <select class="input" id="scraper-volume"></select>
+                <div style="display:flex; gap:8px;">
+                  <select class="input" id="scraper-volume" style="flex:1"></select>
+                  <button class="btn btn-ghost btn-sm" onclick="document.getElementById('btn-new-volume').click()" style="padding: 0 16px;">+ Volume</button>
+                </div>
               </div>
             </div>
 
@@ -227,7 +235,7 @@
             </div>
           </div>
 
-          <!-- Right: log -->
+          
           <div class="flex-col gap-12">
             <div class="card flex-col" style="flex:1">
               <div class="flex items-center gap-8 mb-12">
@@ -237,7 +245,7 @@
               <pre class="scrape-log" id="scrape-log">Scrape results will appear here…</pre>
             </div>
 
-            <!-- HTML paste modal trigger card -->
+            
             <div class="card-sm">
               <div style="font-size:12px;color:var(--text-muted);">💡 Tip: paste WordPress chapter list HTML to auto-extract all URLs and filenames at once.</div>
             </div>
@@ -246,17 +254,17 @@
       </div>
     </div>
 
-    <!-- ══ EDITOR PANEL ════════════════════════ -->
+    
     <div class="panel" id="panel-editor">
       <div class="panel-header">
         <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Markdown Editor</span>
         <div class="panel-actions">
-          <!-- File selector -->
+          
           <select class="input" style="width:220px" id="editor-novel-select" onchange="editorNovelChange()"></select>
           <select class="input" style="width:200px" id="editor-volume-select" onchange="editorVolumeChange()"></select>
-          <!-- editor-file-select removed: managed by sidebar -->
+          
 
-          <!-- View toggle -->
+          
           <button class="btn btn-ghost btn-sm" id="btn-view-split"  title="Split view"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg></button>
           <button class="btn btn-ghost btn-sm" id="btn-view-editor" title="Editor only"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
           <button class="btn btn-ghost btn-sm" id="btn-view-preview" title="Preview only"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -269,7 +277,7 @@
       </div>
 
       <div class="editor-layout" id="editor-layout">
-        <!-- Editor pane -->
+        
         <div class="editor-pane">
           <div class="editor-pane-header">
             <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Source</span>
@@ -279,7 +287,7 @@
           </div>
           <div class="editor-highlight-wrap" id="editor-highlight-wrap">
             
-            <!-- Find & Replace Widget -->
+            
             <div id="find-replace-widget" class="hidden">
               <div class="fr-row">
                 <input type="text" id="fr-find-input" class="input fr-input" placeholder="Find">
@@ -301,7 +309,7 @@
           </div>
         </div>
 
-        <!-- Preview pane -->
+        
         <div class="preview-pane">
           <div class="preview-pane-header">
             <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Preview</span>
@@ -317,7 +325,7 @@
       </div>
     </div>
 
-    <!-- ══ IMAGES PANEL ════════════════════════ -->
+    
     <div class="panel" id="panel-images">
       <div class="panel-header">
         <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image Manager</span>
@@ -327,7 +335,7 @@
         </div>
       </div>
       <div class="panel-body">
-        <!-- Drop zone -->
+        
         <div class="upload-dropzone" id="upload-dropzone">
           <div class="dz-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
           <div class="dz-text">Drag & drop images here, or click to select</div>
@@ -335,12 +343,12 @@
           <input type="file" id="img-file-input" multiple accept="image/*" style="display:none">
         </div>
 
-        <!-- Image grid -->
+        
         <div id="image-grid" class="image-grid"></div>
       </div>
     </div>
 
-    <!-- ══ METADATA PANEL ═══════════════════════ -->
+    
     <div class="panel" id="panel-metadata">
       <div class="panel-header">
         <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>Metadata Editor (main.md)</span>
@@ -353,7 +361,7 @@
       </div>
       <div class="panel-body">
         <div id="meta-form-view">
-          <!-- Primary Title Banner -->
+          
           <div class="card-sm mb-12" style="border-color:var(--border-focus);background:var(--accent-glow);">
             <div class="flex items-center gap-12">
               <div>
@@ -387,7 +395,7 @@
               <input class="input" id="meta-title-ro" placeholder="Romanji Title — leave blank to skip">
             </div>
 
-            <!-- Dynamic Languages Container -->
+            
             <div id="custom-lang-container" style="display:flex;flex-direction:column;gap:16px;"></div>
             
             <div style="margin-top:4px;margin-bottom:16px;">
@@ -420,9 +428,19 @@
               <label class="label">Genres</label>
               <input class="input" id="meta-genres" placeholder="Romance, Fantasy, ...">
             </div>
-            <div class="field full">
+            <div class="field full" style="position:relative;">
               <label class="label">Cover (URL or local path)</label>
-              <input class="input" id="meta-cover" placeholder="images/cover.webp or https://...">
+              <input class="input" id="meta-cover" placeholder="images/cover.webp or https://..." autocomplete="off">
+              
+              <div id="meta-cover-popup" class="image-autocomplete-popup hidden" aria-hidden="true" style="position:absolute; top:100%; left:0; width:100%; max-width:100%; transform:none; bottom:auto; margin-top:4px;">
+                <div class="ac-header">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  Select Cover Image
+                </div>
+                <div id="meta-cover-grid" class="ac-grid" style="max-height:200px;">
+                  
+                </div>
+              </div>
             </div>
             <div class="field full">
               <div class="flex items-center justify-between mb-8">
@@ -433,14 +451,14 @@
                 </div>
               </div>
               <div class="toc-builder" id="toc-builder">
-                <!-- TOC Items injected via JS -->
+                
               </div>
-              <!-- Hidden fallback to store raw parsed data if needed, though JS will read directly from the builder -->
+              
               <textarea id="meta-toc" class="hidden"></textarea>
             </div>
           </div>
 
-          <!-- TakoYune credit -->
+          
           <div style="text-align:center;margin-top:24px;padding:12px 0;border-top:1px solid var(--border);">
             <a href="https://github.com/takoyune" target="_blank"
                style="font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted);text-decoration:none;opacity:0.45;transition:.2s;"
@@ -450,14 +468,14 @@
           </div>
         </div>
 
-        <!-- Raw MD fallback -->
+        
         <div id="meta-raw-view" class="hidden">
           <textarea class="input" id="meta-raw-textarea" rows="30" style="font-family:var(--font-mono);font-size:12px;height:calc(100vh - 200px)"></textarea>
         </div>
       </div>
     </div>
 
-    <!-- ══ EPUB BUILDER PANEL ═══════════════════ -->
+    
     <div class="panel" id="panel-builder">
       <div class="panel-header">
         <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>EPUB Builder</span>
@@ -468,7 +486,7 @@
         </div>
       </div>
       <div class="panel-body">
-        <!-- Build phases -->
+        
         <div style="margin-bottom:20px">
           <div class="build-phase idle" id="phase-audit">
             <span class="ph-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
@@ -497,7 +515,7 @@
           </div>
         </div>
 
-        <!-- Log -->
+        
         <div class="flex items-center gap-8 mb-8">
           <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Build Log</span>
           <button class="btn btn-ghost btn-sm ml-auto" onclick="document.getElementById('build-log').textContent=''">Clear</button>
@@ -506,7 +524,62 @@
       </div>
     </div>
 
-    <!-- ══ SETTINGS PANEL ══════════════════════ -->
+    
+    <div class="panel" id="panel-pdf2md">
+      <div class="panel-header">
+        <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>PDF to Markdown Converter</span>
+      </div>
+      <div class="panel-body">
+        <div class="scraper-layout">
+          
+          <div class="flex-col gap-12">
+            <div class="card">
+              <div class="settings-section-title">Target Location</div>
+              <div class="field">
+                <label class="label">Novel</label>
+                <div style="display:flex; gap:8px;">
+                  <select class="input" id="pdf2md-novel" style="flex:1"></select>
+                  <button class="btn btn-ghost btn-sm" onclick="document.getElementById('btn-new-novel').click()" style="padding: 0 16px;">+ Novel</button>
+                </div>
+              </div>
+              <div class="field">
+                <label class="label">Volume Folder</label>
+                <div style="display:flex; gap:8px;">
+                  <select class="input" id="pdf2md-volume" style="flex:1"></select>
+                  <button class="btn btn-ghost btn-sm" onclick="document.getElementById('btn-new-volume').click()" style="padding: 0 16px;">+ Volume</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="padding:0; overflow:hidden;">
+              <div class="settings-section-title" style="padding:16px 16px 0 16px; margin-bottom:12px;">Upload PDF</div>
+              <div class="upload-dropzone" id="pdf2md-dropzone" style="margin: 0 16px 16px 16px; border: 2px dashed var(--border-focus);">
+                <div class="dz-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></div>
+                <div class="dz-text" id="pdf2md-dz-text">Drag & drop a PDF here, or click to select</div>
+                <div class="dz-hint">Only .pdf files are supported</div>
+                <input type="file" id="pdf2md-file" accept=".pdf" style="display:none">
+              </div>
+              <div style="padding: 0 16px 16px 16px;">
+                <button class="btn btn-primary" id="btn-convert-pdf" style="width:100%; justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Convert to Markdown</button>
+              </div>
+            </div>
+          </div>
+
+          
+          <div class="flex-col gap-12">
+            <div class="card flex-col" style="flex:1">
+              <div class="flex items-center gap-8 mb-12">
+                <div class="settings-section-title" style="margin-bottom:0;flex:1">Conversion Log</div>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pdf2md-log').textContent=''">Clear</button>
+              </div>
+              <pre class="scrape-log" id="pdf2md-log">Processing output will appear here...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
     <div class="panel" id="panel-settings">
       <div class="panel-header">
         <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings (settings.ini)</span>
@@ -516,7 +589,7 @@
       </div>
       <div class="panel-body">
         <div class="settings-grid">
-          <!-- Image settings -->
+          
           <div class="card">
             <div class="settings-section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image</div>
             <div class="field">
@@ -545,7 +618,7 @@
             </div>
           </div>
 
-          <!-- Output settings -->
+          
           <div class="card">
             <div class="settings-section-title">📤 Output</div>
             <div class="field">
@@ -565,7 +638,7 @@
             </div>
           </div>
 
-          <!-- Styling settings -->
+          
           <div class="card">
             <div class="settings-section-title">🎨 Styling</div>
             <div class="field">
@@ -603,7 +676,7 @@
             </div>
           </div>
 
-          <!-- Build settings -->
+          
           <div class="card">
             <div class="settings-section-title">🔨 Build</div>
             <div class="field">
@@ -637,7 +710,7 @@
             </div>
           </div>
 
-          <!-- System / Logging settings -->
+          
           <div class="card" style="grid-column: 1 / -1;">
             <div class="settings-section-title">💻 System & Logging</div>
             <div style="display:flex; gap:16px; align-items:flex-start;">
@@ -661,10 +734,10 @@
       </div>
     </div>
 
-  </main><!-- #main -->
-</div><!-- #app -->
+  </main>
+</div>
 
-<!-- ── Gooey Filter ──────────────── -->
+
 <svg width="0" height="0" style="position: absolute;">
   <filter id="gooey">
     <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
@@ -673,10 +746,10 @@
   </filter>
 </svg>
 
-<!-- ── Toast container ─────────── -->
+
 <div id="toast-container"></div>
 
-<!-- ── HTML Paste Modal ──────────── -->
+
 <div class="modal-overlay" id="modal-html-paste">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>Paste WordPress Chapter List HTML</h3>
@@ -693,7 +766,7 @@
 
 
 
-<!-- ── New Novel Modal ────────────── -->
+
 <div class="modal-overlay" id="modal-new-novel">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Create New Novel</h3>
@@ -708,7 +781,7 @@
   </div>
 </div>
 
-<!-- ── New Volume Modal ───────────── -->
+
 <div class="modal-overlay" id="modal-new-volume">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Create New Volume</h3>
@@ -727,7 +800,7 @@
   </div>
 </div>
 
-<!-- ── New File Modal ────────────── -->
+
 <div class="modal-overlay" id="modal-new-file">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>New Markdown File</h3>
@@ -742,7 +815,7 @@
   </div>
 </div>
 
-<!-- ── Rename File Modal ────────────── -->
+
 <div class="modal-overlay" id="modal-rename-file">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Rename File</h3>
@@ -757,7 +830,55 @@
   </div>
 </div>
 
-<!-- ── Scrape HTML Modal ────────────── -->
+
+<div class="panel" id="panel-pdf2md">
+  <div class="panel-header">
+    <span class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>PDF to Markdown Converter</span>
+  </div>
+  <div class="panel-body">
+    <div class="scraper-layout">
+      
+      <div class="flex-col gap-12">
+        <div class="card">
+          <div class="settings-section-title">Target Directory</div>
+          <div class="field">
+            <label class="label">Novel</label>
+            <select class="input" id="pdf2md-novel"></select>
+          </div>
+          <div class="field">
+            <label class="label">Volume Folder</label>
+            <select class="input" id="pdf2md-volume"></select>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="settings-section-title">Upload PDF</div>
+          <div class="field">
+            <label class="label">PDF File</label>
+            <input type="file" id="pdf2md-file" accept=".pdf" class="input" style="padding-top: 5px;">
+          </div>
+          <div class="flex gap-8" style="margin-top:8px;">
+            <button class="btn btn-primary flex-1" id="btn-convert-pdf"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>Upload & Convert</button>
+          </div>
+        </div>
+      </div>
+
+      
+      <div class="flex-col gap-12">
+        <div class="card flex-col" style="flex:1">
+          <div class="flex items-center gap-8 mb-12">
+            <div class="settings-section-title" style="margin-bottom:0;flex:1">Conversion Log</div>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pdf2md-log').textContent=''">Clear</button>
+          </div>
+          <pre class="scrape-log" id="pdf2md-log">Processing output will appear here...</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
 <div class="modal-overlay" id="modal-scrape-html">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>Scrape from HTML</h3>
@@ -772,7 +893,7 @@
   </div>
 </div>
 
-<!-- ── Image Lightbox Modal ──────────── -->
+
 <div class="modal-overlay" id="modal-lightbox" onclick="closeModal('modal-lightbox')">
   <div class="modal" style="background:transparent;border:none;box-shadow:none;padding:0;max-width:95vw;max-height:95vh;display:flex;flex-direction:column;align-items:center;justify-content:center;" onclick="event.stopPropagation()">
     <img id="lightbox-img" src="" style="max-width:100%;max-height:90vh;border-radius:var(--radius);box-shadow:0 10px 50px rgba(0,0,0,0.8);object-fit:contain;">
@@ -780,7 +901,7 @@
   </div>
 </div>
 
-<!-- ── Add Language Modal ──────────── -->
+
 <div class="modal-overlay" id="modal-add-language">
   <div class="modal">
     <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add Title Language</h3>
@@ -795,27 +916,50 @@
   </div>
 </div>
 
-<!-- ── Unsaved Changes Modal ──────────── -->
-<div class="modal-overlay" id="modal-unsaved-changes">
-  <div class="modal">
-    <h3><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Unsaved Changes</h3>
-    <p class="text-muted text-sm mb-12">You have unsaved changes in the editor. What would you like to do before navigating away?</p>
-    <div class="modal-actions" style="margin-top: 24px;">
-      <button class="btn btn-ghost" id="btn-unsaved-cancel">Cancel</button>
-      <button class="btn" style="background:var(--red);color:#fff;border:none;" id="btn-unsaved-discard">Discard Changes</button>
-      <button class="btn btn-primary" id="btn-unsaved-save">Save Changes</button>
+
+<div class="modal-overlay" id="modal-unsaved-changes" style="backdrop-filter: blur(4px); background: rgba(0,0,0,0.5);">
+  <div class="modal" style="border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 32px; max-width: 400px; border-radius: 16px; background: linear-gradient(145deg, var(--bg-layer1), var(--bg-body));">
+    <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+      <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.08); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border: 1px solid rgba(239, 68, 68, 0.15); box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      
+      <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Unsaved Changes</h3>
+      
+      <p style="color: var(--text-muted); font-size: 13px; line-height: 1.6; margin: 0 0 28px 0;">
+        You have unsaved edits in this chapter. If you leave without saving, your recent progress will be permanently lost.
+      </p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <button class="btn btn-primary" id="btn-unsaved-save" style="width: 100%; justify-content: center; padding: 10px; font-weight: 600; font-size: 13px; border-radius: 8px;">
+        Save Changes & Continue
+      </button>
+      
+      <div style="display: flex; gap: 10px; width: 100%;">
+        <button class="btn btn-ghost" id="btn-unsaved-cancel" style="flex: 1; justify-content: center; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+          Cancel
+        </button>
+        <button class="btn" id="btn-unsaved-discard" style="flex: 1; justify-content: center; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.15); border-radius: 8px; font-weight: 500; font-size: 13px; transition: all 0.2s;" onmouseover="this.style.background='#ef4444'; this.style.color='#fff'" onmouseout="this.style.background='rgba(239, 68, 68, 0.1)'; this.style.color='#ef4444'">
+          Discard Edits
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ── Image Autocomplete Popup ──────────── -->
+
 <div id="image-autocomplete-popup" class="image-autocomplete-popup hidden" aria-hidden="true">
   <div class="ac-header">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
     Select Image
   </div>
   <div id="image-autocomplete-grid" class="ac-grid">
-    <!-- Populated via JS -->
+    
   </div>
 </div>
 

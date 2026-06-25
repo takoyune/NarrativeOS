@@ -1,8 +1,9 @@
-import { loadVolumesForSelect } from './library.js';
+import { loadVolumesForSelect, openInEditor } from './library.js';
 import { state, setPendingAction, setPendingSelectTarget } from '../core/state.js';
 import { api, GET, POST, DEL, sendLog } from '../core/api.js';
 import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect } from '../core/utils.js';
 
+let metaRawMode = false;
 
 export function initMetaPanel() {
   populateSelect('meta-novel-select', state.novels, 'Select Novel');
@@ -167,11 +168,34 @@ export function addTocItemDOM(value) {
   const el = document.createElement('div');
   el.className = 'toc-item';
   el.draggable = true;
+  const isFile = /\(file\)]$/i.test(value.trim());
+  const editBtnHtml = isFile ? `<button class="btn btn-ghost btn-sm btn-edit-toc" title="Edit in Editor" style="margin-right:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>` : '';
+  
   el.innerHTML = `
     <div class="toc-handle" title="Drag to reorder">↕</div>
     <input class="toc-input" value="${value.replace(/"/g, '&quot;')}">
+    ${editBtnHtml}
     <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" title="Remove">✕</button>
   `;
+  const editBtn = el.querySelector('.btn-edit-toc');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      const inputVal = el.querySelector('.toc-input').value.trim();
+      const match = inputVal.match(/^\[(.*)\(file\)]$/i);
+      if (match) {
+        const filename = match[1].trim();
+        const novel = document.getElementById('meta-novel-select').value;
+        const volume = document.getElementById('meta-volume-select').value;
+        if (novel && volume) {
+          openInEditor(novel, volume, filename);
+        } else {
+          toast('Select novel and volume first', 'error');
+        }
+      } else {
+        toast('Can only edit (file) items', 'error');
+      }
+    });
+  }
   el.addEventListener('dragstart', () => {
     el.classList.add('dragging');
     container.classList.add('is-dragging');
@@ -364,3 +388,86 @@ export async function saveMeta() {
     toast('Save failed: ' + e.message, 'error');
   }
 }
+
+
+let metaCoverAutocompleteActive = false;
+
+document.getElementById('meta-cover').addEventListener('focus', async () => {
+  await showMetaCoverPopup();
+});
+
+document.getElementById('meta-cover').addEventListener('input', async (e) => {
+  await showMetaCoverPopup();
+  
+  const val = e.target.value.trim();
+  const inputs = document.querySelectorAll('#toc-builder .toc-input');
+  for (const input of inputs) {
+    if (input.value.startsWith('[Cover (')) {
+      input.value = val ? `[Cover (${val})]` : '[Cover]';
+      break;
+    }
+  }
+});
+
+async function showMetaCoverPopup() {
+  const popup = document.getElementById('meta-cover-popup');
+  const grid = document.getElementById('meta-cover-grid');
+  
+  const novel = document.getElementById('meta-novel-select').value;
+  const volume = document.getElementById('meta-volume-select').value;
+  if (!novel || !volume) return;
+
+  try {
+    const data = await GET(`/api/novels/${encodeURIComponent(novel)}/volumes/${encodeURIComponent(volume)}/files`);
+    grid.innerHTML = '';
+    
+    if (!data.images || data.images.length === 0) {
+      grid.innerHTML = '<div style="color:var(--text-muted); grid-column: 1/-1; text-align:center; padding:20px;">No images found in this volume.</div>';
+    } else {
+      data.images.forEach(imgPath => {
+        const filename = imgPath.split('/').pop();
+        const item = document.createElement('div');
+        item.className = 'ac-item';
+        
+        const img = document.createElement('img');
+        img.src = `/api/images/serve?path=${encodeURIComponent(novel + '/' + volume + '/' + imgPath)}&token=${window.API_KEY || ''}`;
+        
+        const label = document.createElement('div');
+        label.className = 'ac-label';
+        label.textContent = filename;
+        
+        item.appendChild(img);
+        item.appendChild(label);
+        
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          document.getElementById('meta-cover').value = 'images/' + filename;
+          hideMetaCoverPopup();
+          document.getElementById('meta-cover').dispatchEvent(new Event('input'));
+        });
+        
+        grid.appendChild(item);
+      });
+    }
+    
+    popup.classList.remove('hidden');
+    metaCoverAutocompleteActive = true;
+  } catch (e) {
+    console.error('Autocomplete fetch error:', e);
+  }
+}
+
+function hideMetaCoverPopup() {
+  const popup = document.getElementById('meta-cover-popup');
+  if (popup && !popup.classList.contains('hidden')) {
+    popup.classList.add('hidden');
+    metaCoverAutocompleteActive = false;
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (metaCoverAutocompleteActive && !e.target.closest('#meta-cover-popup') && e.target.id !== 'meta-cover') {
+    hideMetaCoverPopup();
+  }
+});

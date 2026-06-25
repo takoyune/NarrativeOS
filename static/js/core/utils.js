@@ -9,9 +9,9 @@ export function toast(msg, type = 'info', duration = 3500) {
   el.className = `toast ${type}`;
   el.innerHTML = `<span>${icons[type] || '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'}</span><span>${msg}</span>`;
   const hideToast = () => {
-    if (el.classList.contains('leaving')) return; // Prevent double trigger
+    if (el.classList.contains('leaving')) return; 
     el.classList.add('leaving');
-    setTimeout(() => el.remove(), 400); // Wait for gooeySlideDown animation
+    setTimeout(() => el.remove(), 400); 
   };
   el.addEventListener('click', hideToast);
   el.style.cursor = 'pointer';
@@ -111,4 +111,17 @@ export function populateSelect(selectId, items, emptyLabel = '—') {
   wrapper.appendChild(arrow);
   wrapper.appendChild(dropdown);
   sel.parentNode.insertBefore(wrapper, sel.nextSibling);
+}
+
+export function setSelectValue(selectId, value) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.value = value;
+  const wrapper = sel.nextElementSibling;
+  if (wrapper && wrapper.classList.contains('custom-select-wrapper')) {
+    const input = wrapper.querySelector('.custom-select-input');
+    if (input) {
+      input.value = value || '';
+    }
+  }
 }

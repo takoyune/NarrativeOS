@@ -248,7 +248,7 @@ def find_image(base_dir, filename):
 
 
 def parse_metadata(base_dir, content):
-    # Dynamically extract all Title fields
+    
     title_matches = re.findall(r'Title (.*?)\s*:\s*\[(.*?)\]', content, flags=re.IGNORECASE)
     
     title_map = {}
@@ -259,7 +259,7 @@ def parse_metadata(base_dir, content):
             title_map[lang_clean] = val.strip()
             label_map[lang_clean] = f"Title {lang.strip()}"
             
-    # Mapping for legacy codes
+    
     legacy_map = {'id': 'indonesia', 'en': 'inggris', 'jp': 'japan', 'romaji': 'romanji'}
     
     author_match = re.search('Author\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
@@ -267,7 +267,7 @@ def parse_metadata(base_dir, content):
     primary_override = re.search('Primary Title\\s*:\\s*\\[(.*?)\\]', content, flags=re.IGNORECASE)
     primary_lang = primary_override.group(1).strip().lower() if primary_override else None
 
-    # Resolve legacy shortcodes to full names
+    
     if primary_lang in legacy_map and legacy_map[primary_lang] in title_map:
         primary_lang = legacy_map[primary_lang]
 
@@ -278,7 +278,7 @@ def parse_metadata(base_dir, content):
         title = title_map[primary_lang]
         primary_title_label = label_map[primary_lang]
     elif title_map:
-        # Fallback to the first available title
+        
         first_lang = list(title_map.keys())[0]
         title = title_map[first_lang]
         primary_title_label = label_map[first_lang]
@@ -454,7 +454,7 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
         start, end = match.span()
         text_segment = md_text[last_pos:start]
         segments.append(('text', text_segment))
-        # Group 1 = markdown alt, Group 2 = markdown file, Group 3 = legacy file
+        
         img_filename = match.group(2) or match.group(3)
         segments.append(('image', img_filename))
         last_pos = end

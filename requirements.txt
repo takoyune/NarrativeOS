@@ -5,3 +5,5 @@ Pillow
 scrapling[all]
 python-multipart
 markdown
+PyMuPDF>=1.23.0
+pydantic>=2.0.0

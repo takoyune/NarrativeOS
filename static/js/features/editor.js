@@ -2,7 +2,7 @@ import { loadVolumesForSelect, showVolumeInfo, openInEditor } from './library.js
 import { saveMeta } from './metadata.js';
 import { saveSettings } from './settings.js';
 
-import { state } from '../core/state.js';
+import { state, setPendingAction } from '../core/state.js';
 import { api, GET, POST, DEL } from '../core/api.js';
 import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect } from '../core/utils.js';
 
@@ -209,7 +209,13 @@ document.getElementById('btn-fr-prev').addEventListener('click', () => {
 });
 document.getElementById('btn-fr-close').addEventListener('click', () => {
   document.getElementById('find-replace-widget').classList.add('hidden');
+  const ta = document.getElementById('md-textarea');
+  if (ta.selectionStart !== ta.selectionEnd) {
+    ta.setSelectionRange(ta.selectionEnd, ta.selectionEnd);
+  }
   updateHighlight();
+  if (typeof previewDebounce !== 'undefined') clearTimeout(previewDebounce);
+  setTimeout(updatePreview, 100);
 });
 document.getElementById('btn-fr-replace').addEventListener('click', () => {
   if (frMatches.length === 0 || frCurrentMatchIndex === -1) return;
@@ -293,10 +299,10 @@ export async function editorFileChange() {
   if (state.mdDirty && state.currentMdPath) {
     const oldFile = state.currentMdPath.split('/').pop();
     if (file === oldFile) {
-      showPanel('editor'); 
+      window.showPanel('editor'); 
       return;
     }
-    pendingAction = performChange;
+    setPendingAction(performChange);
     openModal('modal-unsaved-changes');
     return;
   }
@@ -315,8 +321,14 @@ export function updatePreview() {
   const volume = document.getElementById('editor-volume-select').value;
   let processedMd = md;
   if (novel && volume) {
-    processedMd = processedMd.replace(/!\[(.*?)\]\((images\/[^)]+)\)/g, (match, alt, relPath) => {
-      return `![${alt}](/api/images/serve?path=${encodeURIComponent(novel + '/' + volume + '/' + relPath)}&token=${window.API_KEY || ''})`;
+    processedMd = processedMd.replace(/!\[(.*?)\]\(([^)]+)\)/g, (match, alt, relPath) => {
+      let trimmed = relPath.trim();
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) return match;
+      let finalPath = trimmed;
+      if (!finalPath.startsWith('images/') && !finalPath.startsWith('Ilustrasi/') && !finalPath.startsWith('Ilustarasi/')) {
+        finalPath = 'images/' + finalPath;
+      }
+      return `![${alt}](/api/images/serve?path=${encodeURIComponent(novel + '/' + volume + '/' + finalPath)}&token=${window.API_KEY || ''})`;
     });
   }
   if (typeof marked !== 'undefined') {

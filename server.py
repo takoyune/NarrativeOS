@@ -40,7 +40,7 @@ APP_TOKEN = secrets.token_hex(16)
 log_event("info", f"[Security] Generated dynamic API token for this session.")
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    # API Authentication
+    
     if request.url.path.startswith("/api/"):
         token = request.headers.get("X-API-Key") or request.query_params.get("token")
         if token != APP_TOKEN:
@@ -48,7 +48,7 @@ async def security_middleware(request: Request, call_next):
             
     response: Response = await call_next(request)
     
-    # Secure Headers
+    
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -105,8 +105,8 @@ def safe_path(rel: str) -> Path:
     except Exception:
         raise HTTPException(status_code=400, detail='Path resolution failed')
         
-    # Strict bounds checking using pathlib.Path.is_relative_to (Python 3.9+)
-    # Fallback to absolute string comparison if needed
+    
+    
     p_str = str(p)
     base_str = str(BASE_DIR)
     if not p_str.startswith(base_str) or (len(p_str) > len(base_str) and p_str[len(base_str)] not in ['\\', '/']):
@@ -115,10 +115,10 @@ def safe_path(rel: str) -> Path:
     try:
         rel_parts = p.relative_to(BASE_DIR).parts
         if rel_parts:
-            # Block access to system and hidden directories
+            
             if rel_parts[0] in ['static', '.venv', '__pycache__', '.git', 'scratch', '.agent', '.agents'] or rel_parts[0].startswith('.'):
                 raise HTTPException(status_code=403, detail='Access to system directories denied')
-            # Block executable and critical file access at the root level
+            
             if len(rel_parts) == 1 and p.suffix.lower() in ['.py', '.ini', '.log', '.bat', '.sh', '.exe', '.dll', '.json']:
                 raise HTTPException(status_code=403, detail='Access to core application files denied')
     except ValueError:
@@ -150,7 +150,7 @@ def list_novels() -> list:
     novels = []
     for item in BASE_DIR.iterdir():
         if item.is_dir() and (not item.name.startswith(('.', '_', 'static', 'scratch'))):
-            skip = {'.venv', '__pycache__', 'scratch'}
+            skip = {'.venv', '__pycache__', 'scratch', 'lib_pdf2md', 'test_debug', 'test_out', 'test_stress_out', 'tests', 'PDF2MD'}
             if item.name not in skip:
                 novels.append(item.name)
     return sorted(novels)
@@ -241,6 +241,42 @@ def create_volume(req: CreateVolumeRequest):
             else:
                 target_main.write_text(BLANK_MAIN_MD_TEMPLATE, encoding='utf-8')
     return {'ok': True}
+
+@app.post('/api/pdf2md')
+async def convert_pdf(
+    novel: str = Form(...),
+    volume: str = Form(...),
+    file: UploadFile = File(...)
+):
+    try:
+        from lib_pdf2md.pipeline import run_pipeline
+    except ImportError:
+        raise HTTPException(500, 'PDF2MD module is not available or missing dependencies.')
+
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(400, 'Uploaded file must be a PDF')
+
+    vol_dir = safe_path(f'{novel}/{volume}')
+    vol_dir.mkdir(parents=True, exist_ok=True)
+    
+    
+    temp_pdf_path = BASE_DIR / f'temp_{secrets.token_hex(8)}.pdf'
+    try:
+        with open(temp_pdf_path, 'wb') as f:
+            content = await file.read()
+            f.write(content)
+        
+        
+        run_pipeline(str(temp_pdf_path), base_output_dir=str(vol_dir), output_md_name="novel.md")
+        
+        return {'ok': True, 'message': 'PDF successfully processed'}
+    except Exception as e:
+        log_event('error', f'PDF2MD Error: {str(e)}')
+        raise HTTPException(500, f'PDF processing failed: {str(e)}')
+    finally:
+        
+        if temp_pdf_path.exists():
+            temp_pdf_path.unlink()
 
 @app.delete('/api/delete')
 def delete_item(req: DeleteRequest):
@@ -386,11 +422,11 @@ def scrape_url(req: ScrapeRequest):
             soup = BeautifulSoup(req.html_content, 'html.parser')
         else:
             with pin_dns(host, ip_str):
-                # StealthyFetcher bypasses Cloudflare automatically
+                
                 page = StealthyFetcher.fetch(req.url, headless=True)
             soup = BeautifulSoup(page.body, 'html.parser')
             
-        # Try to find the main content container robustly
+        
         possible_classes = [
             'entry-content', 'post-content', 'chapter-content', 'read-container', 
             'bs-card-box', 'text-left', 'chapter-body', 'novel-content', 'content-area'

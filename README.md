@@ -2,7 +2,7 @@
   <h1>📚 NarrativeOS EPUB Toolkit</h1>
   <p><strong>A comprehensive, blazing-fast local toolkit for scraping, managing, and compiling Light Novels into premium EPUBs.</strong></p>
   
-  ![Version](https://img.shields.io/badge/version-1.3.260620-blue.svg?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/version-1.4.260625-blue.svg?style=for-the-badge)
   ![Python](https://img.shields.io/badge/python-3.8+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
   ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
   ![Vanilla JS](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
@@ -17,30 +17,36 @@ With a robust Python backend and a highly responsive Vanilla JavaScript frontend
 
 ---
 
-## 🚀 What's New in v1.3.260620 (Architecture & UI Refinement)
-The latest update brings a monumental leap in maintainability, UI responsiveness, and stealth-scraping capabilities.
+## 🚀 What's New in v1.4.260625 (PDF Engine & UX Overhaul)
+The latest update introduces heavy-duty PDF parsing capabilities, refined metadata quality-of-life enhancements, and strict architectural stability.
 
-### 🧩 Frontend Modularization
-- **ES6 Module Architecture**: Completely dismantled the monolithic `app.js` into highly focused, specialized modules (`editor.js`, `scraper.js`, `metadata.js`, `library.js`, etc.). This ensures blazing-fast load times and unparalleled code maintainability.
-- **Dynamic Language Support**: The Metadata panel now supports dynamically adding and managing custom title languages. Break free from rigid "English/Romanji" defaults!
+### 📄 Integrated PDF to Markdown Engine (PDF2MD)
+- **Native PDF Ingestion**: A brand-new dedicated PDF2MD frontend panel lets you securely drag & drop raw PDFs and automatically extract their formatted text directly into your Novel Volumes.
+- **Smart Layout Mapping**: Powered by a robust Python pipeline using `pdfplumber` and `PyMuPDF`, it intelligently preserves paragraphs, chapter headers, and text structures.
 
-### 🖼️ Smart Media Engine
-- **Auto-Download & WebP Compression**: Paste any direct image URL into your Markdown (`![img](https...)`). On compile, NarrativeOS securely downloads it, converts it to highly-optimized WebP, compresses it to save space, and automatically rewrites the path in your chapter to be local.
-- **Full-Page Image Isolation**: Standard markdown tags `![...](...)` now act as isolated, full-page illustrations automatically in the compiled EPUB.
+### ✨ Metadata & UX Quality-of-Life
+- **Visual Cover Autocomplete**: Say goodbye to typing paths manually. The Metadata cover field now features an interactive popup grid that previews all local images inside your active volume. Click an image to instantly select it as the cover.
+- **TOC Quick Edit**: A dedicated inline "Edit" button has been added directly to your Table of Contents markdown items. Clicking it instantly teleports you into the MD Editor for that exact chapter.
+- **Automated Data Syncing**: Patched asynchronous panel-switching race conditions. Navigating between Scraper, Editor, and Metadata tabs perfectly synchronizes your selected novel/volume states without loading glitches.
 
-### ✨ Elevated UI & Visuals
-- **Premium Themes**: Introducing hyper-refined aesthetic palettes, including *Indigo Dark*, *Cinema Rose*, *Financial Navy*, and *Clean SaaS*.
-- **Image Autocomplete Gallery**: Type `![` to open a real-time, visual image autocomplete glass gallery directly inside the Markdown editor.
-- **Fluid Micro-Interactions**: Built-in SVG `Gooey` filters and micro-animations to make the interface feel incredibly alive.
-
-### 🛡️ Core Security & Stealth
-- **Advanced Cloudflare Bypass**: Integrated `StealthyFetcher` engine to seamlessly bypass aggressive anti-bot protections like Cloudflare on modern translation sites.
-- **Hardened Middleware**: Deployed stringent HTTP Headers including `Content-Security-Policy (CSP)`, `X-Frame-Options`, and `Referrer-Policy`. 
-- **Strict Path Resolution**: Upgraded path-traversal blocking with stricter boundary checking and recursive resolution blocks.
+### 🛠️ Architecture & Cleanup
+- **Stripped Production Assets**: Executed a full-repository script to safely strip all redundant code comments (`//`, `<!-- -->`, `#`), reducing file sizes and improving read speed.
+- **Removed Orphaned Junk**: Permanently expunged leftover testing folders (`test_debug`, `test_out`, `test_stress_out`, `tests`) and redundant `PDF2MD/` subdirectories to keep the codebase hyper-clean.
 
 ---
 
 ## 🔒 Previous Major Updates
+
+<details>
+<summary><strong>v1.3.260620 (Architecture & UI Refinement)</strong></summary>
+
+- **Frontend Modularization**: Completely dismantled the monolithic `app.js` into highly focused, specialized modules (`editor.js`, `scraper.js`, `metadata.js`, `library.js`, etc.).
+- **Smart Media Engine**: Auto-downloads and compresses markdown images to local WebP files on compile.
+- **Premium Themes**: Added aesthetic palettes like *Indigo Dark*, *Cinema Rose*, *Financial Navy*, and *Clean SaaS*.
+- **Image Autocomplete Gallery**: Real-time visual image autocomplete inside the Markdown editor.
+- **Advanced Cloudflare Bypass**: Integrated `StealthyFetcher` to aggressively bypass anti-bot protections.
+
+</details>
 
 <details>
 <summary><strong>v1.2.061926 (Security Update)</strong></summary>
