@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Path as FastAPIPath, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Path as FastAPIPath, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -32,7 +32,6 @@ app.add_middleware(
 )
 STATIC_DIR.mkdir(exist_ok=True)
 
-from fastapi.responses import JSONResponse
 import traceback
 
 @app.exception_handler(Exception)
@@ -54,12 +53,12 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
     )
 app.mount('/static', StaticFiles(directory=str(STATIC_DIR)), name='static')
 
-from fastapi import Request, Response
+from fastapi import Response
 from fastapi.responses import HTMLResponse
 import secrets
 
 APP_TOKEN = secrets.token_hex(16)
-log_event("info", f"[Security] Generated dynamic API token for this session.")
+log_event("info", "[Security] Generated dynamic API token for this session.")
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
     
@@ -428,10 +427,14 @@ async def upload_image(file: UploadFile=File(...), novel: str=Form(...), volume:
     file.file.seek(0)
     magic = file.file.read(12)
     is_image = False
-    if magic.startswith(b'\xff\xd8\xff'): is_image = True
-    elif magic.startswith(b'\x89PNG\r\n\x1a\n'): is_image = True
-    elif magic.startswith(b'GIF8'): is_image = True
-    elif magic.startswith(b'RIFF') and magic[8:12] == b'WEBP': is_image = True
+    if magic.startswith(b'\xff\xd8\xff'):
+        is_image = True
+    elif magic.startswith(b'\x89PNG\r\n\x1a\n'):
+        is_image = True
+    elif magic.startswith(b'GIF8'):
+        is_image = True
+    elif magic.startswith(b'RIFF') and magic[8:12] == b'WEBP':
+        is_image = True
     if not is_image:
         raise HTTPException(403, 'Invalid image file content')
     file.file.seek(0)

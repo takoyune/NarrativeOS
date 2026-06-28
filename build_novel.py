@@ -184,7 +184,7 @@ def process_markdown_tricks(md_text):
     md_text = re.sub('\\(thought\\)\\s*\\[(.*?)\\]', lambda m: f'<span class="thought-inline">{html.escape(m.group(1))}</span>', md_text, flags=re.IGNORECASE)
     md_text = re.sub('\\[stats\\](.*?)\\[/stats\\]', lambda m: f'\n<blockquote>\n{html.escape(m.group(1))}\n</blockquote>\n', md_text, flags=re.DOTALL | re.IGNORECASE)
     md_text = re.sub('\\[UI\\](.*?)\\[/UI\\]', lambda m: f'\n<pre class="game-ui-box">{html.escape(m.group(1))}</pre>\n', md_text, flags=re.DOTALL | re.IGNORECASE)
-    md_text = re.sub('^\\s*(([■🍖▼▲◆○●❖])(\\s*\\2)*)\\s*$', f'<div class="scene-break">\\1</div>', md_text, flags=re.MULTILINE)
+    md_text = re.sub('^\\s*(([■🍖▼▲◆○●❖])(\\s*\\2)*)\\s*$', '<div class="scene-break">\\1</div>', md_text, flags=re.MULTILINE)
     return md_text
 
 def get_epub_type(title: str) -> str:
@@ -255,7 +255,8 @@ def download_online_images(base_dir, md_text):
 def find_image(base_dir, filename):
     for f in ('images', 'Ilustrasi', 'Ilustarasi'):
         p = os.path.join(base_dir, f, filename)
-        if os.path.exists(p): return p
+        if os.path.exists(p):
+            return p
     return os.path.join(base_dir, 'images', filename)
 
 
@@ -394,7 +395,8 @@ def add_image_to_manifest(filename, src_path, images_dir, manifest_items, is_cov
     return filename
 
 def process_cover(cover_rel_path, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template):
-    if not cover_rel_path: return
+    if not cover_rel_path:
+        return
     if cover_rel_path.lower().startswith(('http://', 'https://')):
         src_images_dir = os.path.join(base_dir, 'images')
         os.makedirs(src_images_dir, exist_ok=True)

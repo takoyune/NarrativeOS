@@ -24,7 +24,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run Ruff Linter
-      run: ruff check . --ignore E402,E501,F401,F403,F405,F841,E722 --show-source
+      run: ruff check . --ignore E402,E501,F401,F403,F405,F841,E722
 
     - name: Run Python Compile Check
       run: python -m compileall .
