@@ -4,7 +4,7 @@ import { saveSettings } from './settings.js';
 
 import { state, setPendingAction } from '../core/state.js';
 import { api, GET, POST, DEL } from '../core/api.js';
-import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect } from '../core/utils.js';
+import { toast, openModal, closeModal, openLightbox, copyToClipboard, populateSelect, askConfirm } from '../core/utils.js';
 
 
 let previewDebounce = null;
@@ -583,7 +583,7 @@ document.getElementById('btn-confirm-rename').addEventListener('click', async ()
     try {
       const mdData = await GET(`/api/md?path=${encodeURIComponent(novel + '/' + volume + '/main.md')}`);
       if (mdData.content) {
-        let content = mdData.content.replace(`[${oldPath.split('/').pop()}(file)]`, `[${newName}(file)]`);
+        let content = mdData.content.split(`[${oldPath.split('/').pop()}(file)]`).join(`[${newName}(file)]`);
         await POST('/api/md', { path: `${novel}/${volume}/main.md`, content });
       }
     } catch(e) { console.error("Could not rename in TOC", e); }
@@ -597,7 +597,7 @@ document.getElementById('btn-confirm-rename').addEventListener('click', async ()
 document.getElementById('btn-delete-file').addEventListener('click', async () => {
   if (!state.currentMdPath) { toast('No file selected', 'error'); return; }
   const filename = state.currentMdPath.split('/').pop();
-  if (!confirm(`Are you sure you want to delete ${filename}? This cannot be undone.`)) return;
+  if (!(await askConfirm('Delete File', `Are you sure you want to delete ${filename}? This cannot be undone.`, 'Delete'))) return;
   try {
     await DEL('/api/delete', { path: state.currentMdPath });
     state.currentMdPath = null;

@@ -2,7 +2,7 @@
   <h1>📚 NarrativeOS EPUB Toolkit</h1>
   <p><strong>A comprehensive, blazing-fast local toolkit for scraping, managing, and compiling Light Novels into premium EPUBs.</strong></p>
   
-  ![Version](https://img.shields.io/badge/version-1.4.260625-blue.svg?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/version-1.5.260628-blue.svg?style=for-the-badge)
   ![Python](https://img.shields.io/badge/python-3.8+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
   ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
   ![Vanilla JS](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
@@ -17,30 +17,46 @@ With a robust Python backend and a highly responsive Vanilla JavaScript frontend
 
 ---
 
-## 🚀 What's New in v1.4.260625 (PDF Engine & UX Overhaul)
-The latest update introduces heavy-duty PDF parsing capabilities, refined metadata quality-of-life enhancements, and strict architectural stability.
+## 🚀 What's New in v1.5.260628 (EPUB Engine & Stability Overhaul)
+The latest update introduces semantic EPUB structuring, comprehensive e-reader compatibility fixes, and a highly stable exception-handling backend.
 
-### 📄 Integrated PDF to Markdown Engine (PDF2MD)
-- **Native PDF Ingestion**: A brand-new dedicated PDF2MD frontend panel lets you securely drag & drop raw PDFs and automatically extract their formatted text directly into your Novel Volumes.
-- **Smart Layout Mapping**: Powered by a robust Python pipeline using `pdfplumber` and `PyMuPDF`, it intelligently preserves paragraphs, chapter headers, and text structures.
+### 📚 Core EPUB Engine Upgrades
+- **Semantic EPUB Typing**: The engine now intelligently parses chapter titles to assign semantic tags (e.g., `prologue`, `chapter`, `epilogue`), drastically improving e-reader navigation.
+- **Kobo & Kindle CSS Compatibility**: Added strict CSS fixes (`-webkit-text-size-adjust: 100%`) and removed flexbox for full-page images, solving the notorious "ghost image" bug on Kobo devices.
+- **Native Dark Mode Support**: Generated EPUB CSS now includes `@media (prefers-color-scheme: dark)`, automatically adjusting font and background colors based on the reader's device preferences.
+- **Automated EPUBCheck**: The compiler now automatically validates the generated EPUB against strict standards using `epubcheck`.
 
-### ✨ Metadata & UX Quality-of-Life
-- **Visual Cover Autocomplete**: Say goodbye to typing paths manually. The Metadata cover field now features an interactive popup grid that previews all local images inside your active volume. Click an image to instantly select it as the cover.
-- **TOC Quick Edit**: A dedicated inline "Edit" button has been added directly to your Table of Contents markdown items. Clicking it instantly teleports you into the MD Editor for that exact chapter.
-- **Automated Data Syncing**: Patched asynchronous panel-switching race conditions. Navigating between Scraper, Editor, and Metadata tabs perfectly synchronizes your selected novel/volume states without loading glitches.
-
-### 🛠️ Architecture & Cleanup
-- **Stripped Production Assets**: Executed a full-repository script to safely strip all redundant code comments (`//`, `<!-- -->`, `#`), reducing file sizes and improving read speed.
-- **Removed Orphaned Junk**: Permanently expunged leftover testing folders (`test_debug`, `test_out`, `test_stress_out`, `tests`) and redundant `PDF2MD/` subdirectories to keep the codebase hyper-clean.
+### ⚙️ Backend & API Stability
+- **Global Error Handling**: The backend now catches exceptions globally and returns clean JSON tracebacks to the frontend UI, preventing the interface from silently hanging on failures.
+- **Smart Image Renaming**: Renaming an image in the UI automatically scans and updates all Markdown files referencing the old image name.
+- **Volume Statistics**: Added new API endpoints to compute accurate character and word counts for specific volumes.
 
 ---
 
 ## 🔒 Previous Major Updates
 
 <details>
+<summary><strong>v1.4.260625 (PDF Engine & UX Overhaul)</strong></summary>
+
+### 📄 Integrated PDF to Markdown Engine (PDF2MD)
+- **Native PDF Ingestion**: A brand-new dedicated PDF2MD frontend panel lets you securely drag & drop raw PDFs and automatically extract their formatted text directly into your Novel Volumes.
+- **Smart Layout Mapping**: Powered by a robust Python pipeline using `pdfplumber` and `PyMuPDF`, it intelligently preserves paragraphs, chapter headers, and text structures.
+
+### ✨ Metadata & UX Quality-of-Life
+- **Visual Cover Autocomplete**: The Metadata cover field now features an interactive popup grid that previews all local images. Click an image to instantly select it as the cover.
+- **TOC Quick Edit**: A dedicated inline "Edit" button has been added directly to your Table of Contents markdown items.
+- **Automated Data Syncing**: Patched asynchronous panel-switching race conditions.
+
+### 🛠️ Architecture & Cleanup
+- **Stripped Production Assets**: Executed a full-repository script to safely strip all redundant code comments, reducing file sizes and improving read speed.
+- **Removed Orphaned Junk**: Permanently expunged leftover testing folders and redundant subdirectories.
+
+</details>
+
+<details>
 <summary><strong>v1.3.260620 (Architecture & UI Refinement)</strong></summary>
 
-- **Frontend Modularization**: Completely dismantled the monolithic `app.js` into highly focused, specialized modules (`editor.js`, `scraper.js`, `metadata.js`, `library.js`, etc.).
+- **Frontend Modularization**: Completely dismantled the monolithic `app.js` into highly focused, specialized modules.
 - **Smart Media Engine**: Auto-downloads and compresses markdown images to local WebP files on compile.
 - **Premium Themes**: Added aesthetic palettes like *Indigo Dark*, *Cinema Rose*, *Financial Navy*, and *Clean SaaS*.
 - **Image Autocomplete Gallery**: Real-time visual image autocomplete inside the Markdown editor.
@@ -70,19 +86,29 @@ The latest update introduces heavy-duty PDF parsing capabilities, refined metada
 * **Premium Bypass (HTML Paste)**: Got a locked chapter? Copy the HTML source code from your browser and paste it directly. NarrativeOS easily bypasses the lock.
 * **Advanced Image Recovery**: Built-in canvas decoding easily breaks through obfuscated base64 canvases used by modern translation sites.
 
+### 📄 PDF → Markdown Engine
+* **Native PDF Ingestion**: A dedicated frontend panel lets you securely drag & drop raw PDFs and automatically extract their formatted text directly into your Novel Volumes.
+* **Smart Layout Mapping**: Powered by a robust Python pipeline (`pdfplumber` & `PyMuPDF`), it intelligently preserves paragraphs, chapter headers, and text structures.
+
 ### ✏️ Premium Markdown Editor
 * **Split-Pane View**: Write or edit in raw Markdown on the left while watching a real-time, styled HTML preview on the right.
 * **Custom Syntax Highlighting**: Uses a custom-built highlighter tailored specifically for novel formatting, making dialogue and thoughts pop.
 * **Auto-Saving & File Management**: Rename, delete, or create chapters seamlessly within the interface.
+* **Inline TOC Editing**: Instantly jump from the Table of Contents editor directly to specific chapters.
 
 ### 📋 Smart Metadata Management
 * **Intelligent Carry-Over**: Creating a new volume automatically copies the Author, Artist, Genres, and Translator from the previous volume.
 * **Language Targeting**: Set your primary title language (Japanese, English, Romaji) so your final EPUB looks exactly how you want it.
+* **Visual Cover Autocomplete**: Pick covers seamlessly from an interactive gallery of local volume images.
+* **Smart Image Renaming**: Renaming image assets automatically updates Markdown links seamlessly.
 
 ### 📦 Robust EPUB Compiler
 * **Automated Book Assembly**: With one click, NarrativeOS parses your Markdown and metadata to generate a perfectly structured EPUB.
+* **Semantic Structuring**: Intelligently assigns `epub:type` metadata to chapters (e.g., prologues vs epilogues) for superior e-reader navigation.
+* **E-Reader & Dark Mode Optimization**: Outputs bulletproof CSS designed specifically to fix bugs on Kobo/Kindle devices while seamlessly transitioning for dark mode users.
 * **Premium Styling Elements**: Automatically supports Drop Caps, elegant Scene Breaks (`***` to `❖ ❖ ❖`), Character Thought Boxes `(thought)`, Character Stats Box `[stats]`, retro Game UI Notifications `[UI]`, and Full-Page Image Isolation.
 * **Smart Image Engine**: Automatically downloads remote images, converts massive PNGs/JPEGs into lightweight WebP formats, compresses them, and safely localizes URLs.
+* **EPUBCheck Validation**: Automatically validates your output file against official standard specifications.
 
 ---
 

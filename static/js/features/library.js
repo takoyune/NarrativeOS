@@ -76,20 +76,27 @@ export async function loadVolumesInTree(novel, container) {
 export async function updateStats() {
   document.getElementById('stat-novels').textContent = state.novels.length;
   let totalVols = 0, totalFiles = 0, totalImgs = 0;
-  for (const novel of state.novels.slice(0, 10)) {
-    try {
-      const vdata = await GET(`/api/novels/${encodeURIComponent(novel)}/volumes`);
-      const vols = vdata.volumes || [];
-      totalVols += vols.length;
-      for (const vol of vols.slice(0, 5)) {
-        try {
-          const fdata = await GET(`/api/novels/${encodeURIComponent(novel)}/volumes/${encodeURIComponent(vol)}/files`);
-          totalFiles += (fdata.md_files || []).length;
-          totalImgs += (fdata.images || []).length;
-        } catch {}
-      }
-    } catch {}
-  }
+  const novelResults = await Promise.all(
+    state.novels.map(novel =>
+      GET(`/api/novels/${encodeURIComponent(novel)}/volumes`).catch(() => ({ volumes: [] }))
+    )
+  );
+  const volFetches = [];
+  novelResults.forEach((vdata, ni) => {
+    const vols = vdata.volumes || [];
+    totalVols += vols.length;
+    vols.forEach(vol => {
+      volFetches.push(
+        GET(`/api/novels/${encodeURIComponent(state.novels[ni])}/volumes/${encodeURIComponent(vol)}/files`)
+          .catch(() => ({ md_files: [], images: [] }))
+      );
+    });
+  });
+  const fileResults = await Promise.all(volFetches);
+  fileResults.forEach(fdata => {
+    totalFiles += (fdata.md_files || []).length;
+    totalImgs += (fdata.images || []).length;
+  });
   document.getElementById('stat-volumes').textContent = totalVols;
   document.getElementById('stat-files').textContent = totalFiles;
   document.getElementById('stat-images').textContent = totalImgs;
@@ -108,14 +115,30 @@ export async function showVolumeInfo(novel, volume) {
   document.getElementById('no-selection').classList.add('hidden');
   const infoEl = document.getElementById('volume-info');
   infoEl.classList.remove('hidden');
+  document.getElementById('vi-novel-title').textContent = novel;
   document.getElementById('vi-title').textContent = volume;
   try {
-    const data = await GET(`/api/novels/${encodeURIComponent(novel)}/volumes/${encodeURIComponent(volume)}/files`);
+    const [data, statsData] = await Promise.all([
+      GET(`/api/novels/${encodeURIComponent(novel)}/volumes/${encodeURIComponent(volume)}/files`),
+      GET(`/api/novels/${encodeURIComponent(novel)}/volumes/${encodeURIComponent(volume)}/stats`)
+    ]);
     const files = data.md_files || [];
+    
+    let subtitle = document.getElementById('vi-subtitle');
+    if (!subtitle) {
+      subtitle = document.createElement('div');
+      subtitle.id = 'vi-subtitle';
+      subtitle.style.fontSize = '12px';
+      subtitle.style.color = 'var(--text-muted)';
+      subtitle.style.marginTop = '4px';
+      document.getElementById('vi-title').insertAdjacentElement('afterend', subtitle);
+    }
+    subtitle.textContent = `${files.length} files • ${statsData.word_count.toLocaleString()} words • ${statsData.char_count.toLocaleString()} chars`;
+
     const fileListEl = document.getElementById('vi-files');
     fileListEl.innerHTML = '';
     files.forEach(f => {
-      if (f === 'main.md') return; 
+      if (f === 'main.md') return;
       const row = document.createElement('div');
       row.className = 'file-row';
       row.innerHTML = `
@@ -159,6 +182,7 @@ export function populateAllSelects() {
     });
   }
 }
+
 export async function loadVolumesForSelect(novelSelectId, volSelectId) {
   const sel = document.getElementById(novelSelectId);
   const novel = sel?.value;
@@ -173,4 +197,99 @@ export async function loadVolumesForSelect(novelSelectId, volSelectId) {
       document.getElementById(volSelectId).value = state.selectedVolume;
     }
   } catch {}
+}
+
+function askForRename(title, label, currentValue) {
+  return new Promise(resolve => {
+    document.getElementById('rename-title-text').textContent = title;
+    document.getElementById('modal-rename-label').textContent = label;
+
+    const btn = document.getElementById('btn-submit-rename');
+    const oldBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(oldBtn, btn);
+
+    const input = document.getElementById('rename-input');
+    const newInput = input.cloneNode(true);
+    input.parentNode.replaceChild(newInput, input);
+    newInput.value = currentValue;
+
+    const cancelBtn = document.getElementById('btn-cancel-rename');
+    const oldCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(oldCancelBtn, cancelBtn);
+
+    const submit = () => {
+      window.closeModal('modal-rename');
+      resolve(newInput.value);
+    };
+    const cancel = () => {
+      window.closeModal('modal-rename');
+      resolve(null);
+    };
+
+    oldBtn.addEventListener('click', submit);
+    oldCancelBtn.addEventListener('click', cancel);
+    newInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit();
+      if (e.key === 'Escape') cancel();
+    });
+
+    window.openModal('modal-rename');
+    setTimeout(() => newInput.focus(), 100);
+  });
+}
+window.askForRename = askForRename;
+
+export async function renameCurrentNovel() {
+  if (!state.selectedNovel) {
+    toast('No novel selected', 'error');
+    return;
+  }
+  const currentName = state.selectedNovel;
+  const newName = await askForRename('Rename Novel', 'Novel Folder Name', currentName);
+  if (!newName || newName.trim() === '' || newName.trim() === currentName) return;
+
+  try {
+    const res = await POST('/api/rename', {
+      old_path: currentName,
+      new_path: newName.trim()
+    });
+    if (res.ok) {
+      toast('Novel renamed successfully', 'success');
+      state.selectedNovel = newName.trim();
+      await loadLibrary();
+      selectVolume(state.selectedNovel, state.selectedVolume);
+    }
+  } catch (e) {
+    toast('Error renaming novel: ' + e.message, 'error');
+  }
+}
+
+window.exportCurrentNovel = function() {
+  if (!state.selectedNovel) return;
+  window.location.href = `/api/export/${encodeURIComponent(state.selectedNovel)}?token=${window.API_KEY || ''}`;
+};
+
+export async function renameCurrentVolume() {
+  if (!state.selectedNovel || !state.selectedVolume) {
+    toast('No volume selected', 'error');
+    return;
+  }
+  const currentName = state.selectedVolume;
+  const newName = await askForRename('Rename Volume', 'Volume Folder Name', currentName);
+  if (!newName || newName.trim() === '' || newName.trim() === currentName) return;
+
+  try {
+    const res = await POST('/api/rename', {
+      old_path: `${state.selectedNovel}/${currentName}`,
+      new_path: `${state.selectedNovel}/${newName.trim()}`
+    });
+    if (res.ok) {
+      toast('Volume renamed successfully', 'success');
+      state.selectedVolume = newName.trim();
+      await loadLibrary();
+      selectVolume(state.selectedNovel, state.selectedVolume);
+    }
+  } catch (e) {
+    toast('Error renaming volume: ' + e.message, 'error');
+  }
 }

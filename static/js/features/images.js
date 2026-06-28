@@ -42,9 +42,12 @@ export async function loadImages() {
       card.innerHTML = `
         <img src="${src}" alt="${name}" loading="lazy"
              onerror="this.style.display='none'" style="cursor:pointer;" onclick="openLightbox('${src}')">
-        <div class="img-label" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px;">
-          <span title="${name}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</span>
-          <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('images/${name}')" title="Copy Markdown Path" style="padding: 2px 6px; margin-left: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></button>
+        <div class="img-label" style="display: flex; flex-direction: column; padding: 4px 8px; gap: 6px;">
+          <span title="${name}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px;">${name}</span>
+          <div style="display: flex; gap: 4px; justify-content: center;">
+            <button class="btn btn-ghost btn-sm" onclick="renameImage('${novel}', '${volume}', '${name}')" title="Rename image" style="padding: 4px; height: auto; flex: 1; display: flex; justify-content: center; align-items: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+            <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('![${name.split('.')[0]}](images/${name})')" title="Copy MD" style="padding: 4px; height: auto; flex: 1; display: flex; justify-content: center; align-items: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></button>
+          </div>
         </div>
       `;
       grid.appendChild(card);
@@ -89,4 +92,20 @@ export async function handleImageFiles(files) {
   if (ok) toast(`Uploaded ${ok} image(s)`, 'success');
   loadImages();
 }
+
+window.renameImage = async function(novel, volume, oldName) {
+  const newName = await window.askForRename('Rename Image', 'New Image Name', oldName);
+  if (!newName || newName === oldName) return;
+  try {
+    await POST('/api/rename', {
+      old_path: `${novel}/${volume}/images/${oldName}`,
+      new_path: `${novel}/${volume}/images/${newName}`
+    });
+    toast('Image renamed successfully', 'success');
+    loadImages();
+  } catch (e) {
+    toast('Rename failed: ' + e.message, 'error');
+  }
+};
+
 let metaRawMode = false;

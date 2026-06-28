@@ -4,12 +4,25 @@ export async function api(method, url, body) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(url, opts);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    throw new Error(`Network Error: Cannot connect to server (${err.message})`);
   }
-  return res.json();
+  if (!res.ok) {
+    let errDetail = res.statusText;
+    try {
+      const err = await res.json();
+      errDetail = err.error || err.detail || res.statusText;
+    } catch(e) {}
+    throw new Error(`Server Error (${res.status}): ${errDetail}`);
+  }
+  try {
+    return await res.json();
+  } catch (err) {
+    throw new Error(`Invalid Response: Server returned malformed data.`);
+  }
 }
 export const GET  = (url)        => api('GET', url);
 export const POST = (url, body)  => api('POST', url, body);

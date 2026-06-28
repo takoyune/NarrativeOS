@@ -243,6 +243,10 @@ document.getElementById('btn-add-toc-item').addEventListener('click', () => {
 document.getElementById('btn-auto-toc').addEventListener('click', async () => {
   const novel = document.getElementById('meta-novel-select').value;
   const volume = document.getElementById('meta-volume-select').value;
+  await triggerAutoTOC(novel, volume);
+});
+
+export async function triggerAutoTOC(novel, volume) {
   if (!novel || !volume) { toast('Select novel and volume first', 'error'); return; }
   try {
     const data = await GET(`/api/novels/${encodeURIComponent(novel)}/volumes/${encodeURIComponent(volume)}/files`);
@@ -292,10 +296,11 @@ document.getElementById('btn-auto-toc').addEventListener('click', async () => {
     let msg = `TOC Auto-Scanned: Added ${addedCount} new items`;
     if (prunedCount > 0) msg += `, Pruned ${prunedCount} missing files`;
     toast(msg, 'success');
+    await saveMeta();
   } catch (e) {
     toast('Failed to scan: ' + e.message, 'error');
   }
-});
+}
 export function buildMetaFromForm() {
   const f = id => document.getElementById(id).value.trim();
   const primaryLang = document.getElementById('meta-primary-title')?.value || 'id';

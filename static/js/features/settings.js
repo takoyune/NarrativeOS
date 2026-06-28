@@ -1,14 +1,40 @@
 import { state, setPendingAction, setPendingSelectTarget } from '../core/state.js';
 import { api, GET, POST, DEL, sendLog } from '../core/api.js';
-import { toast, openModal, closeModal, openLightbox, copyToClipboard } from '../core/utils.js';
+import { toast, openModal, closeModal, openLightbox, copyToClipboard, upgradeStaticSelect } from '../core/utils.js';
 let currentSettings = {};
 
 export async function initSettingsPanel() {
+  const scopeSelect = document.getElementById('settings-scope-select');
+  scopeSelect.innerHTML = '<option value="">Global Settings</option>';
+  state.novels.forEach(novel => {
+    const opt = document.createElement('option');
+    opt.value = novel;
+    opt.textContent = 'Override: ' + novel;
+    scopeSelect.appendChild(opt);
+  });
+  upgradeStaticSelect('settings-scope-select');
+  
+  scopeSelect.addEventListener('change', async () => {
+    const isGlobal = scopeSelect.value === '';
+    const cardsToHide = [
+      document.getElementById('set-out-lang')?.closest('.card'),
+      document.getElementById('set-ed-autosave')?.closest('.card'),
+      document.getElementById('set-sys-maxlogs')?.closest('.card')
+    ];
+    cardsToHide.forEach(card => { if (card) card.style.display = isGlobal ? '' : 'none'; });
+    await fetchSettings(scopeSelect.value);
+  });
+
+  await fetchSettings('');
+}
+
+async function fetchSettings(novel = '') {
   try {
-    const data = await GET('/api/settings');
+    const url = novel ? `/api/settings?novel=${encodeURIComponent(novel)}` : '/api/settings';
+    const data = await GET(url);
     currentSettings = data;
     applySettingsToForm(data);
-    fetchLogs();
+    if (!novel) fetchLogs();
   } catch (e) {
     toast('Error loading settings: ' + e.message, 'error');
   }
@@ -38,7 +64,7 @@ export function applySettingsToForm(data) {
   setVal('set-out-location',  out.output_location || 'parent');
   setVal('set-out-format',    out.output_name_format || '{folder_name}');
   setVal('set-sty-dropcap',    sty.drop_cap || 'false');
-  setVal('set-sty-scenebreak', sty.scene_break_symbol || '❖ ❖ ❖');
+  setVal('set-sty-scenebreak', sty.scene_break_symbol || '* * *');
   setVal('set-sty-fontsize',   sty.font_size || '1.0');
   setVal('set-sty-lineheight', sty.line_height || '1.8');
   setVal('set-sty-indent',     sty.text_indent || '1.5');
@@ -94,7 +120,11 @@ export async function saveSettings() {
     }
   };
   try {
-    await POST('/api/settings', { settings: newSettings });
+    const scope = document.getElementById('settings-scope-select').value;
+    const reqBody = { settings: newSettings };
+    if (scope) reqBody.novel = scope;
+    
+    await POST('/api/settings', reqBody);
     toast('Settings saved!', 'success');
   } catch (e) {
     toast('Save failed: ' + e.message, 'error');

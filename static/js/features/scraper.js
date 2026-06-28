@@ -1,4 +1,5 @@
 import { openInEditor, loadVolumesForSelect } from './library.js';
+import { triggerAutoTOC } from './metadata.js';
 import { state } from '../core/state.js';
 import { api, GET, POST, DEL } from '../core/api.js';
 import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect } from '../core/utils.js';
@@ -75,6 +76,10 @@ document.getElementById('btn-add-url').addEventListener('click', () => {
   batchUrls.push({ url: '', filename: `Chapter ${batchUrls.length + 1}.md` });
   renderBatchList();
 });
+document.getElementById('btn-clear-urls').addEventListener('click', () => {
+  batchUrls = [];
+  renderBatchList();
+});
 document.getElementById('btn-scrape-batch').addEventListener('click', async () => {
   const novel = document.getElementById('scraper-novel').value;
   const volume = document.getElementById('scraper-volume').value;
@@ -115,6 +120,7 @@ document.getElementById('btn-scrape-batch').addEventListener('click', async () =
       }
     }
     toast(`Batch done: ${valid.length} chapters`, 'success');
+    await triggerAutoTOC(novel, volume);
   } catch (e) {
     logScrape(`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:text-bottom;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Batch error: ${e.message}`, 'err');
     toast(e.message, 'error');

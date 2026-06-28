@@ -121,7 +121,106 @@ export function setSelectValue(selectId, value) {
   if (wrapper && wrapper.classList.contains('custom-select-wrapper')) {
     const input = wrapper.querySelector('.custom-select-input');
     if (input) {
-      input.value = value || '';
+      const selectedOpt = Array.from(sel.options).find(o => o.value === value);
+      input.value = selectedOpt ? selectedOpt.textContent : (value || '');
     }
   }
+}
+
+export function upgradeStaticSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.style.display = 'none';
+  let wrapper = sel.nextElementSibling;
+  if (wrapper && wrapper.classList.contains('custom-select-wrapper')) {
+    wrapper.remove();
+  }
+  wrapper = document.createElement('div');
+  wrapper.className = 'custom-select-wrapper';
+  const input = document.createElement('input');
+  input.className = 'custom-select-input';
+  input.type = 'text';
+  input.readOnly = true;
+  input.style.cursor = 'pointer';
+  const selectedOpt = Array.from(sel.options).find(o => o.value === sel.value) || sel.options[0];
+  input.value = selectedOpt ? selectedOpt.textContent : ''; 
+  const arrow = document.createElement('div');
+  arrow.className = 'custom-select-arrow';
+  arrow.innerHTML = '▼';
+  const dropdown = document.createElement('div');
+  dropdown.className = 'custom-select-dropdown';
+  
+  const allOptions = Array.from(sel.options).map(opt => ({ value: opt.value, label: opt.textContent }));
+  
+  const renderDropdown = () => {
+    dropdown.innerHTML = '';
+    allOptions.forEach(o => {
+      const optEl = document.createElement('div');
+      optEl.className = 'custom-select-option';
+      if (o.value === sel.value) optEl.classList.add('selected');
+      optEl.textContent = o.label;
+      optEl.addEventListener('mousedown', (e) => { 
+        e.preventDefault();
+        sel.value = o.value;
+        input.value = o.label;
+        dropdown.classList.remove('open');
+        wrapper.classList.remove('open');
+        wrapper.style.zIndex = '';
+        sel.dispatchEvent(new Event('change'));
+        input.blur();
+      });
+      dropdown.appendChild(optEl);
+    });
+  };
+  
+  input.addEventListener('focus', () => {
+    renderDropdown();
+    dropdown.classList.add('open');
+    wrapper.classList.add('open');
+    wrapper.style.zIndex = '9999';
+  });
+  input.addEventListener('mousedown', (e) => {
+    e.preventDefault(); 
+    if (!dropdown.classList.contains('open')) {
+      input.focus();
+    } else {
+      input.blur();
+    }
+  });
+  input.addEventListener('blur', () => {
+    dropdown.classList.remove('open');
+    wrapper.classList.remove('open');
+    wrapper.style.zIndex = '';
+  });
+  
+  wrapper.appendChild(input);
+  wrapper.appendChild(arrow);
+  wrapper.appendChild(dropdown);
+  sel.parentNode.insertBefore(wrapper, sel.nextSibling);
+}
+
+export function askConfirm(title, message, confirmBtnText = 'Confirm') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modal-confirm');
+    document.getElementById('modal-confirm-title').textContent = title;
+    document.getElementById('modal-confirm-msg').textContent = message;
+    document.getElementById('btn-confirm-ok').textContent = confirmBtnText;
+    
+    const cancelBtn = document.getElementById('btn-confirm-cancel');
+    const okBtn = document.getElementById('btn-confirm-ok');
+    
+    const cleanup = () => {
+      cancelBtn.removeEventListener('click', onCancel);
+      okBtn.removeEventListener('click', onOk);
+      closeModal('modal-confirm');
+    };
+    
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onOk = () => { cleanup(); resolve(true); };
+    
+    cancelBtn.addEventListener('click', onCancel);
+    okBtn.addEventListener('click', onOk);
+    
+    openModal('modal-confirm');
+  });
 }

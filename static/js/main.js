@@ -1,8 +1,21 @@
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error("Unhandled Promise Rejection:", event.reason);
+  import('./utils.js').then(({ toast }) => {
+    toast(event.reason?.message || "An unexpected error occurred.", 'error');
+  });
+});
+window.addEventListener('error', (event) => {
+  console.error("Uncaught Error:", event.error);
+  import('./utils.js').then(({ toast }) => {
+    toast(`App crashed: ${event.message}`, 'error');
+  });
+});
 import { state, pendingAction, pendingSelectTarget, setPendingAction, setPendingSelectTarget } from './core/state.js';
 import { api, GET, POST, DEL, sendLog } from './core/api.js';
 import { toast, openModal, closeModal, openLightbox, copyToClipboard , populateSelect } from './core/utils.js';
 
-import { loadLibrary, renderLibraryTree, loadVolumesInTree, updateStats, selectVolume, showVolumeInfo, openInEditor, populateAllSelects, loadVolumesForSelect } from './features/library.js';
+import { loadLibrary, renderLibraryTree, loadVolumesInTree, updateStats, selectVolume, showVolumeInfo, openInEditor, populateAllSelects, loadVolumesForSelect, renameCurrentNovel, renameCurrentVolume } from './features/library.js';
 import { highlightMarkdown, applyInline, syncScroll, syncScrollRight, updateHighlight, updateFrMatches, updateFrDisplay, saveMd, editorNovelChange, editorVolumeChange, editorFileChange, initEditorPanel, updateCharCount, updatePreview } from './features/editor.js';
 import { initScraperPanel, scraperNovelChange, logScrape, renderBatchList } from './features/scraper.js';
 import { initMetaPanel, parseMetaToForm, renderTocBuilder, addTocItemDOM, buildMetaFromForm, metaNovelChange, metaVolumeChange, loadMeta, saveMeta } from './features/metadata.js';
@@ -28,6 +41,9 @@ window.metaNovelChange = metaNovelChange;
 window.metaVolumeChange = metaVolumeChange;
 window.buildNovelChange = buildNovelChange;
 window.pdf2mdNovelChange = pdf2mdNovelChange;
+
+window.renameCurrentNovel = renameCurrentNovel;
+window.renameCurrentVolume = renameCurrentVolume;
 
 
 window.showPanel = function(name) {

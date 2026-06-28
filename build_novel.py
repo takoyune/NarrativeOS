@@ -18,8 +18,6 @@ except ImportError:
     Image = None
 
 def load_settings():
-    """Load settings from settings.ini in the same directory as this script.
-    Returns a dict with all settings, using defaults if file/keys are missing."""
     config = configparser.ConfigParser()
     settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settings.ini')
     if os.path.exists(settings_path):
@@ -33,8 +31,6 @@ def xml_safe(text):
     return html.escape(str(text), quote=True)
 
 def compress_image(filepath, max_mb=None):
-    """Compress image and convert to the target format from settings.
-    Returns the final filepath — will differ from input if converted."""
     if Image is None:
         return filepath
     if max_mb is None:
@@ -109,8 +105,6 @@ def compress_image(filepath, max_mb=None):
         return filepath
 
 def update_md_image_references(base_dir, old_name, new_name):
-    """Scan all .md files in base_dir and replace old_name with new_name in image references.
-    Called after a PNG→JPEG conversion to keep .md files in sync."""
     pattern = re.compile('(?<![\\w\\-])' + re.escape(old_name) + '(?![\\w\\-])', re.IGNORECASE)
     for fname in os.listdir(base_dir):
         if fname.lower().endswith('.md'):
@@ -129,7 +123,6 @@ def update_md_image_references(base_dir, old_name, new_name):
 from utils import get_safe_ip_and_host, pin_dns, log_event
 
 def download_url(url, dest_path, retries=None, timeout=None):
-    """Download a URL to dest_path with retry logic. Returns True on success."""
     ip_str, host = get_safe_ip_and_host(url)
     if not ip_str:
         log_event("warn", f"Skipping unsafe URL (SSRF blocked): {url}")
@@ -193,6 +186,25 @@ def process_markdown_tricks(md_text):
     md_text = re.sub('\\[UI\\](.*?)\\[/UI\\]', lambda m: f'\n<pre class="game-ui-box">{html.escape(m.group(1))}</pre>\n', md_text, flags=re.DOTALL | re.IGNORECASE)
     md_text = re.sub('^\\s*(([■🍖▼▲◆○●❖])(\\s*\\2)*)\\s*$', f'<div class="scene-break">\\1</div>', md_text, flags=re.MULTILINE)
     return md_text
+
+def get_epub_type(title: str) -> str:
+    lower = title.lower()
+    if any(k in lower for k in ('prologue', 'prolog', 'prolog')):
+        return 'prologue'
+    if any(k in lower for k in ('epilogue', 'epilog')):
+        return 'epilogue'
+    if any(k in lower for k in ('afterword', 'afterword', 'penutup')):
+        return 'afterword'
+    if any(k in lower for k in ('foreword', 'preface', 'pengantar', 'prakata')):
+        return 'foreword'
+    if any(k in lower for k in ('introduction', 'pendahuluan')):
+        return 'introduction'
+    if any(k in lower for k in ('appendix', 'lampiran')):
+        return 'appendix'
+    if any(k in lower for k in ('chapter', 'bab', 'part', 'bagian')):
+        return 'chapter'
+    return 'chapter'
+
 
 def add_dropcap(html):
     match = re.search('<p>([A-Za-z])(.*?</p>)', html, flags=re.DOTALL)
@@ -366,12 +378,15 @@ def add_image_to_manifest(filename, src_path, images_dir, manifest_items, is_cov
     img_id = re.sub('[^a-zA-Z0-9_.-]', '_', img_id)
     if img_id and img_id[0].isdigit():
         img_id = 'i_' + img_id
-    if any((item['id'] == img_id for item in manifest_items)):
+    img_href = f'images/{filename}'
+    existing_item = next((item for item in manifest_items if item.get('href') == img_href), None)
+    if existing_item:
+        if is_cover:
+            existing_item['properties'] = 'cover-image'
         return filename
-    media_type = 'image/webp'
-    if not filename.lower().endswith('.webp'):
-        ext = filename.lower().split('.')[-1]
-        media_type = f'image/{ext}' if ext != 'jpg' else 'image/jpeg'
+    if any((item['id'] == img_id for item in manifest_items)):
+        img_id += f'_{len(manifest_items)}'
+    media_type = epub_builder.get_media_type(filename)
     manifest_item = {'id': img_id, 'href': f'images/{filename}', 'media-type': media_type}
     if is_cover:
         manifest_item['properties'] = 'cover-image'
@@ -416,7 +431,7 @@ def process_cover(cover_rel_path, base_dir, xhtml_dir, images_dir, manifest_item
         manifest_items.append({'id': 'cover_page', 'href': f'xhtml/{out_filename}', 'media-type': 'application/xhtml+xml'})
         spine_items.append({'id': 'cover_page', 'title': 'Cover'})
 
-def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern):
+def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, xhtml_image_template, xhtml_semantic_template, chapter_idx, inline_img_pattern):
     file_path = os.path.join(base_dir, filename)
     if not os.path.exists(file_path):
         for df in os.listdir(base_dir):
@@ -470,18 +485,35 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
     if not filtered_segments:
         return chapter_idx
     has_text = any((seg_type == 'text' for seg_type, _ in filtered_segments))
-    if not has_text:
+    is_illustration_chapter = ('ilustra' in ch_title.lower() or 'illustration' in ch_title.lower())
+    if (not has_text) or is_illustration_chapter:
         illus_html_list = []
+        first_text_segment_done = False
         for seg_type, val in filtered_segments:
             if seg_type == 'image':
                 img_filename = val
                 src = find_image(base_dir, img_filename)
                 actual_img = add_image_to_manifest(img_filename, src, images_dir, manifest_items)
                 if actual_img:
-                    illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>')
+                    alt_text = xml_safe(f'Illustration for {ch_title}')
+                    illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img}" alt="{alt_text}" /></div>')
+            elif seg_type == 'text':
+                segment_text = process_markdown_tricks(val)
+                segment_html = markdown.markdown(segment_text, extensions=['tables', 'fenced_code'])
+                if not first_text_segment_done:
+                    first_text_segment_done = True
+                    if SETTINGS.get('drop_cap'):
+                        segment_html = add_dropcap(segment_html)
+                else:
+                    segment_html = remove_first_p_indent(segment_html)
+                illus_html_list.append(segment_html)
         if illus_html_list:
             illus_body = '\n'.join(illus_html_list)
-            xhtml_content = xhtml_template.format(title=xml_safe(ch_title), body=illus_body)
+            if has_text:
+                epub_type = get_epub_type(ch_title)
+                xhtml_content = xhtml_semantic_template.format(title=xml_safe(ch_title), body=illus_body, epub_type=epub_type)
+            else:
+                xhtml_content = xhtml_image_template.format(title=xml_safe(ch_title), body=illus_body)
             out_filename = f'chapter-{chapter_idx:02d}-01.xhtml'
             out_path = os.path.join(xhtml_dir, out_filename)
             with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -503,7 +535,10 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
                     segment_html = add_dropcap(segment_html)
             else:
                 segment_html = remove_first_p_indent(segment_html)
-            xhtml_content = xhtml_template.format(title=xml_safe(ch_title), body=segment_html)
+            epub_type = get_epub_type(ch_title)
+            xhtml_content = xhtml_semantic_template.format(
+                title=xml_safe(ch_title), body=segment_html, epub_type=epub_type
+            )
             out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
             out_path = os.path.join(xhtml_dir, out_filename)
             with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -522,8 +557,9 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
             actual_img = add_image_to_manifest(img_filename, src, images_dir, manifest_items)
             if actual_img:
                 is_first_part = part_idx == 1
-                illus_html = f'<div class="full-page-image"><img src="../images/{actual_img}" alt="Illustration" /></div>\n'
-                xhtml_content = xhtml_template.format(title=xml_safe(ch_title) if is_first_part else 'Ilustrasi', body=illus_html)
+                alt_text = xml_safe(f'Illustration for {ch_title}')
+                illus_html = f'<div class="full-page-image"><img src="../images/{actual_img}" alt="{alt_text}" /></div>\n'
+                xhtml_content = xhtml_image_template.format(title=xml_safe(ch_title) if is_first_part else 'Ilustrasi', body=illus_html)
                 out_filename = f'chapter-{chapter_idx:02d}-{part_idx:02d}.xhtml'
                 out_path = os.path.join(xhtml_dir, out_filename)
                 with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -539,7 +575,6 @@ def process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, s
     return chapter_idx
 
 def parse_toc(content: str) -> list[str]:
-    """Parse the Table of Contents section from the main.md file."""
     toc_start_idx = content.lower().find('table of content')
     if toc_start_idx == -1:
         log_event("error", 'Table of Content block not found in main.md')
@@ -558,8 +593,7 @@ def parse_toc(content: str) -> list[str]:
             raw_toc_items.append(line[1:-1])
     return [item.strip() for item in raw_toc_items if item.strip()]
 
-def process_toc_items(toc_items: list[str], base_dir: str, xhtml_dir: str, images_dir: str, manifest_items: list, spine_items: list, xhtml_template: str, meta: dict, inline_img_pattern: re.Pattern) -> int:
-    """Process each item in the parsed Table of Contents."""
+def process_toc_items(toc_items: list[str], base_dir: str, xhtml_dir: str, images_dir: str, manifest_items: list, spine_items: list, xhtml_template: str, xhtml_image_template: str, xhtml_semantic_template: str, meta: dict, inline_img_pattern: re.Pattern) -> int:
     chapter_idx = 1
     for item in toc_items:
         if item.lower().startswith('cover'):
@@ -575,7 +609,7 @@ def process_toc_items(toc_items: list[str], base_dir: str, xhtml_dir: str, image
                     illus_html_list.append(f'<div class="full-page-image"><img src="../images/{actual_img_name}" alt="Illustration" /></div>')
             if illus_html_list:
                 illus_body = '\n'.join(illus_html_list)
-                xhtml_content = xhtml_template.format(title='Ilustrasi', body=illus_body)
+                xhtml_content = xhtml_image_template.format(title='Ilustrasi', body=illus_body)
                 out_filename = 'illustrations.xhtml'
                 out_path = os.path.join(xhtml_dir, out_filename)
                 with open(out_path, 'w', encoding='utf-8') as out_f:
@@ -600,7 +634,7 @@ def process_toc_items(toc_items: list[str], base_dir: str, xhtml_dir: str, image
         chapter_match = re.match('^(.*?\\.md)\\s*\\(file\\)$', item, flags=re.IGNORECASE)
         if chapter_match:
             filename = chapter_match.group(1).strip()
-            chapter_idx = process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, chapter_idx, inline_img_pattern)
+            chapter_idx = process_chapter(filename, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, xhtml_image_template, xhtml_semantic_template, chapter_idx, inline_img_pattern)
             continue
         else:
             log_event("warn", f"Unrecognized TOC item: '{item}'")
@@ -617,6 +651,7 @@ def build_novel(args=None):
     if not os.path.exists(base_dir):
         log_event("error", f'Folder not found: {base_dir}')
         return
+    print('PHASE:audit', flush=True)
     auto_compress_folder(base_dir)
     main_md_path = os.path.join(base_dir, 'main.md')
     if not os.path.exists(main_md_path):
@@ -627,6 +662,7 @@ def build_novel(args=None):
     
     meta = parse_metadata(base_dir, content)
     
+    print('PHASE:format', flush=True)
     temp_dir = tempfile.mkdtemp(prefix='epub_novel_')
     try:
         manifest_items = []
@@ -638,8 +674,10 @@ def build_novel(args=None):
         os.makedirs(images_dir, exist_ok=True)
 
         xhtml_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n<head>\n  <title>{title}</title>\n  <link rel="stylesheet" type="text/css" href="../css/style.css"/>\n</head>\n<body>\n{body}\n</body>\n</html>'
+        xhtml_image_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">\n<head>\n  <title>{title}</title>\n  <link rel="stylesheet" type="text/css" href="../css/style.css"/>\n</head>\n<body class="image-page">\n{body}\n</body>\n</html>'
+        xhtml_semantic_template = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en">\n<head>\n  <title>{title}</title>\n  <link rel="stylesheet" type="text/css" href="../css/style.css"/>\n</head>\n<body>\n<section epub:type="{epub_type}">\n{body}\n</section>\n</body>\n</html>'
         
-        process_cover(meta['cover_rel_path'], base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template)
+        process_cover(meta['cover_rel_path'], base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_image_template)
         
         chapter_idx = 1
         inline_img_pattern = re.compile(
@@ -651,20 +689,25 @@ def build_novel(args=None):
         if not toc_items:
             return
             
-        process_toc_items(toc_items, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, meta, inline_img_pattern)
+        print('PHASE:images', flush=True)
+        process_toc_items(toc_items, base_dir, xhtml_dir, images_dir, manifest_items, spine_items, xhtml_template, xhtml_image_template, xhtml_semantic_template, meta, inline_img_pattern)
         
+        print('PHASE:compile', flush=True)
         metadata = {'title': meta['title'], 'author': meta['author'], 'language': SETTINGS['language'], 'fixed_layout': False}
         epub_builder.stage_5_package_assembly(metadata, manifest_items, spine_items, temp_dir, settings=SETTINGS)
         parent_folder_name = os.path.basename(os.path.dirname(base_dir))
         volume_meta = meta.get('volume', '').strip()
         novel_folder_name = os.path.basename(base_dir)
             
-        epub_name = SETTINGS['output_name_format'].format(
-            title=meta['title'], 
-            volume=volume_meta, 
-            folder_name=novel_folder_name,
-            parent_folder_name=parent_folder_name
-        ).strip()
+        if not volume_meta:
+            epub_name = parent_folder_name
+        else:
+            epub_name = SETTINGS['output_name_format'].format(
+                title=meta['title'], 
+                volume=volume_meta, 
+                folder_name=novel_folder_name,
+                parent_folder_name=parent_folder_name
+            ).strip()
         safe_name = ''.join([c for c in epub_name if c.isalpha() or c.isdigit() or c in ' -_']).strip()
         safe_name = safe_name.replace(' ', '_')
         if SETTINGS['output_location'].lower() == 'same':
@@ -677,9 +720,13 @@ def build_novel(args=None):
         epub_size_mb = os.path.getsize(output_epub) / 1024 / 1024
         ch_count = sum((1 for s in spine_items if isinstance(s, dict) and s.get('id', '').endswith('_01') and s.get('id', '').startswith('ch')))
         img_count = sum((1 for m in manifest_items if m.get('media-type', '').startswith('image/')))
-        print(f'\n✅ Done! {meta["title"]}')
+        print(f'\n✅ Done! {meta.get("title", novel_folder_name)} {volume_meta}')
         print(f'   📚 {ch_count} chapter(s)  |  🖼  {img_count} image(s)  |  📦 {epub_size_mb:.1f} MB')
-        print(f'   📄 {output_epub}\n')
+        print(f'   {output_epub}\n')
+    except Exception as e:
+        import traceback
+        log_event('error', f'Build completely crashed: {e}\n{traceback.format_exc()}')
+        raise
     finally:
         shutil.rmtree(temp_dir)
 
